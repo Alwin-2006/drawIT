@@ -1,0 +1,28 @@
+import React from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import "../index.css";
+
+function Navbar() {
+
+    return (
+        <>
+            <nav className="bg-[var(--color-neutral)]   border-[var(--color-primary)] border-4 flex items-center justify-between px-5 py-3 font-mono">
+                <Link to='/' className="">
+                    <h1 className="text-[var(--color-primary)] font-display font-bold text-4xl">drawIT</h1>
+                </Link>
+                <div className="flex justify-around font-mono text-[var(--color-primary)] items-center gap-5 text-lg">
+                    <Link to="/">Home</Link>
+                    <Link to="/rooms">Rooms</Link>
+                    <Link to="/leaderboard">Leaderboard</Link>
+                </div>
+                <div className="flex justify-center text-sm items-center gap-5">
+                    <button className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Login</button>
+                    <button className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Signup</button>
+                </div>
+            </nav>
+        </>
+    )
+}
+
+export default Navbar

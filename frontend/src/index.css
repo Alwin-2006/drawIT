@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-mono: 'Space Mono', monospace;
+  --font-sans: 'Hanken Grotesk', sans-serif;
+  --font-display: 'Bricolage Grotesque', sans-serif;
+}
+
+:root {
+  /* Colors */
+  --color-primary: #000000;
+  --color-primary-hover: #333333;
+  --color-secondary: #00E5FF;
+  --color-tertiary: #FFFB00;
+  --color-neutral: #FCF9F2;
+
+  --color-bg-primary: #FFE5B4;
+  --color-bg-secondary: #f6e2c5;
+  --color-bg-tertiary: #d9c7ad;
+
+  --color-text-primary: #000000;
+  --color-text-secondary: #00E5FF;
+  --color-text-muted: #555555;
+
+  --color-border: #e6e3dc;
+  --color-success: #00E5FF;
+  --color-danger: #ff5555;
+  --color-warning: #FFFB00;
+
+  /* Typography */
+  --font-sans: 'Hanken Grotesk', sans-serif;
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Borders */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+/* Custom Background Pattern for the Homepage */
+.home-background {
+  background-color: var(--color-bg-primary);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-attachment: fixed;
+  transition: background-color 0.3s ease;
+}
