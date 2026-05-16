@@ -17,8 +17,8 @@ function Navbar() {
                     <Link to="/leaderboard">Leaderboard</Link>
                 </div>
                 <div className="flex justify-center text-sm items-center gap-5">
-                    <button className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Login</button>
-                    <button className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Signup</button>
+                    <Link to="/login" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Login</Link>
+                    <Link to="/signup" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Signup</Link>
                 </div>
             </nav>
         </>

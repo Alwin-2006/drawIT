@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 
 function Home() {
     return (
@@ -10,7 +11,7 @@ function Home() {
                     </div>
                     <h1 className='text-5xl font-display'>Player 1</h1>
                     <div className="flex items-center justify-center gap-5">
-                        <button className='bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-sm cursor-pointer hover:bg-[var(--color-secondary)] hover:text-black transition-all duration-200 ease-in-out'>Play</button>
+                        <Link to="/game" className='bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-sm cursor-pointer hover:bg-[var(--color-secondary)] hover:text-black transition-all duration-200 ease-in-out'>Play</Link>
                         <button className='bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-sm cursor-pointer hover:bg-[var(--color-secondary)] hover:text-black transition-all duration-200 ease-in-out'>Mode</button>
                     </div>
                     <div className='font-bold text-lg flex items-center bg-[var(--color-tertiary)] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] justify-center p-3'>
