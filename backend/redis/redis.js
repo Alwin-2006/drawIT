@@ -15,4 +15,6 @@ client.on("connect", () => {
   console.log("Redis client connected");
 });
 
+
+
 export default client;
