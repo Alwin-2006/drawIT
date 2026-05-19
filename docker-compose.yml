@@ -1,0 +1,68 @@
+services:
+  database:
+    image: mongo:latest
+    container_name: mern-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - mern-network
+
+  redis:
+    image: redis:8.4.0-alpine
+    container_name: mern-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mern-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mern-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://root:password123@database:27017/mernapp?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+    depends_on:
+      - database
+      - redis
+    networks:
+      - mern-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mern-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5173
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+volumes:
+  mongo-data:
+  redis-data:
+
+
+networks:
+  mern-network:
+    driver: bridge
