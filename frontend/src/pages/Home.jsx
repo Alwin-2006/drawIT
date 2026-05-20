@@ -1,7 +1,13 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { io } from "socket.io-client";
 
 function Home() {
+    const [username, setUsername] = useState('Player 1');
+    const [room, setRoom] = useState('');
+    const [error, setError] = useState('');
+    const socket = io('http://localhost:3000');
     return (
         <div>
             <div className='home-background flex items-center justify-center h-screen'>
@@ -9,7 +15,7 @@ function Home() {
                     <div>
 
                     </div>
-                    <h1 className='text-5xl font-display'>Player 1</h1>
+                    <h1 className='text-5xl font-display'>Player {username}</h1>
                     <div className="flex items-center justify-center gap-5">
                         <Link to="/game" className='bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-sm cursor-pointer hover:bg-[var(--color-secondary)] hover:text-black transition-all duration-200 ease-in-out'>Play</Link>
                         <button className='bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-sm cursor-pointer hover:bg-[var(--color-secondary)] hover:text-black transition-all duration-200 ease-in-out'>Mode</button>

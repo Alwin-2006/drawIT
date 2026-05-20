@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import connectToMongoDB from "./db/connectToMongoDB.js";
 import authRoutes from "./routes/authRoutes.js";
 import redisClient from "./redis/redis.js";
+import initSocket from "./socket.js";
 
 dotenv.config();
 
@@ -14,6 +15,9 @@ app.use(express.json()); // to parse req.body
 app.use("/api/auth", authRoutes);
 
 const server = http.createServer(app);
+
+// initialize socket.io with the HTTP server
+initSocket(server);
 
 app.get("/redis", async (req, res) => {
     try {
