@@ -67,7 +67,7 @@ function Game() {
       ]);
     });
 
-    onGuess(({ playerId: guesserId, guess }) => {
+    onGuess(({ playerName, guess }) => {
       setMessages((prev) => [
         ...prev,
         { playerName: `${playerName}`, text: guess },
@@ -96,7 +96,7 @@ function Game() {
     event.preventDefault();
     if (!guessValue.trim()) return;
 
-    sendGuess({ room: roomCode, playerId, guess: guessValue.trim() });
+    sendGuess({ room: roomCode,playerName, playerId, guess: guessValue.trim() });
     
     setGuessValue('');
   };

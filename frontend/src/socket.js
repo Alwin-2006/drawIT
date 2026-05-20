@@ -83,9 +83,9 @@ const sendDrawing = (data) => {
   socket.emit('drawing', data);
 };
 
-const sendGuess = ({ room, playerId, guess }) => {
+const sendGuess = ({ room, playerName,playerId, guess }) => {
   if (!socket) return;
-  socket.emit('guess', { room, playerId, guess });
+  socket.emit('guess', { room, playerName,playerId, guess });
 };
 
 const sendCorrectGuess = ({ room, playerId, points }) => {

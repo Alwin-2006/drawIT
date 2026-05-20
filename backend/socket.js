@@ -31,11 +31,28 @@ const initSocket = (server) => {
 
     io.on('connection', (socket) => {
         console.log('Socket connected:', socket.id, 'user:', socket.user?.id || socket.user?.username || 'unknown');
+        
+        socket.on('joinRoom', async ({ room, playerId, playerName }) => {
+            if (!room || !playerId) return;
+            try {
+                const redisPlayerId = playerId.toString();
+                const existingScore = await redisClient.zscore(room, redisPlayerId);
+                if (existingScore === null) {
+                    await redisClient.zadd(room, 0,{ score: 0, playerID: redisPlayerId,playerName:playerName });
+                }
 
-        socket.on('joinRoom', ({ room, playerId, playerName }) => {
-            if (room) {
+                const leaderboard = await redisClient.zrevrange(room, 0, -1);
+                const formattedLeaderboard = leaderboard.map((entry) => ({
+                    playerId: entry.playerID,
+                    playerName,
+                    score: entry.score,
+                }));
+
                 socket.join(room);
+                socket.emit('roomLeaderboard', formattedLeaderboard);
                 io.to(room).emit('playerJoined', { playerId, playerName });
+            } catch (error) {
+                console.error('Redis joinRoom error:', error.message);
             }
         });
 
@@ -43,8 +60,8 @@ const initSocket = (server) => {
             if (data?.room) socket.to(data.room).emit('drawing', data);
         });
 
-        socket.on('guess', ({ room, playerId, guess }) => {
-            if (room) io.to(room).emit('guess', { playerId, guess });
+        socket.on('guess', ({ room, playerName, playerId, guess }) => {
+            if (room) io.to(room).emit('guess', { playerName, guess });
         });
 
         socket.on('correctGuess', async ({ room, playerId, points }) => {
