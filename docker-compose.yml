@@ -6,8 +6,8 @@ services:
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo-data:/data/db
     networks:
@@ -18,7 +18,7 @@ services:
     container_name: mern-redis
     restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -31,12 +31,13 @@ services:
     container_name: mern-backend
     restart: always
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT}:3000"
     environment:
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://root:password123@database:27017/mernapp?authSource=admin
-      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=${NODE_ENV}
+      - MONGO_URI=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@database:27017/${MONGO_DB_NAME}?authSource=admin
+      - REDIS_URL=redis://redis:${REDIS_PORT}
       - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - database
       - redis
@@ -50,9 +51,9 @@ services:
     container_name: mern-frontend
     restart: always
     ports:
-      - "5173:80"
+      - "5173:${FRONTEND_PORT}"
     environment:
-      - REACT_APP_API_URL=http://localhost:5173
+      - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT}
     depends_on:
       - backend
     networks:

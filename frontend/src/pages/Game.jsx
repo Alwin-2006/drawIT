@@ -9,6 +9,7 @@ import {
   onCorrectGuess,
   sendGuess,
 } from '../socket.js';
+import WhiteBoard from '../components/WhiteBoard.jsx';
 
 const PlayersList = ({ players }) => {
   return (
@@ -118,7 +119,7 @@ function Game() {
           </div>
         </div>
         <div className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 w-3/5 h-5/7 flex flex-col gap-4 text-2xl'>
-          
+          <WhiteBoard />
         </div>
         <div className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 w-1/5 h-5/7 flex flex-col items-center justify-center gap-10 text-2xl'>
           <div className='flex items-center justify-center'>Game board</div>
