@@ -12,6 +12,7 @@ import {
   sendGuess,
 } from '../socket.js';
 import WhiteBoard from '../components/WhiteBoard.jsx';
+import useUserStore from '../store/userStore.js';
 
 const PlayersList = ({ players }) => {
   return (
@@ -39,13 +40,23 @@ function Game() {
   const [messages, setMessages] = useState([]);
   const [guessValue, setGuessValue] = useState('');
   const [status, setStatus] = useState('Connecting...');
-  const [playerName] = useState(() => `Guest-${Math.floor(1000 + Math.random() * 9000)}`);
+  const playerName = useUserStore((state) => state.username);
+  const setUsername = useUserStore((state) => state.setUsername);
+  const rating = useUserStore((state) => state.rating);
   const [playerId] = useState(() => `guest-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+
+  useEffect(() => {
+    if (!playerName) {
+      setUsername(`Guest-${Math.floor(1000 + Math.random() * 9000)}`);
+    }
+  }, [playerName, setUsername]);
   const [word, setWord]= useState(sampleword);
   const [hideword,setHideword]=  useState('');
   const roomCode = 'party-6767676767';
 
   useEffect(() => {
+    if (!playerName) return;
+
     const setup = async () => {
       const client = await connectGuest();
       const joinRoom = () => {
@@ -58,7 +69,7 @@ function Game() {
         client.once('connect', joinRoom);
       }
     };
-    
+
     setup();
 
     onPlayerJoined((payload) => {
@@ -125,7 +136,10 @@ function Game() {
       <div className='flex items-center justify-between gap-3 p-2'>
         <span className='font-mono p-2 gap-10 text-2xl w-1/5'>{status}</span>
         <span className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 flex flex-col items-center justify-center gap-10 text-2xl w-1/2'>{hideword}</span>
-        <span className='font-display bg-[var(--color-secondary)] text-[var(--color-primary)] border-[var(--color-primary)] p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center gap-10 text-sm w-1/5'>{playerName}</span>
+        <span className='font-display bg-[var(--color-secondary)] text-[var(--color-primary)] border-[var(--color-primary)] p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center gap-2 text-sm w-1/5'>
+          <span>{playerName || 'Guest'}</span>
+          <span className='text-xs'>Rating: {rating}</span>
+        </span>
       </div>
       <div className='home-background flex flex-row p-3 gap-3 h-screen'>
         <div className='font-display bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-3 w-1/5 h-5/7 gap-10 text-2xl'>
