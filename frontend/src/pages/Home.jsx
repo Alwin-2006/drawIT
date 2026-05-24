@@ -13,7 +13,7 @@ function Home() {
             <div className='home-background flex items-center justify-center h-screen'>
                 <div className="font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 w-3/5 h-5/7 flex flex-col items-center justify-center gap-10 text-2xl">
                     <div>
-            
+                        hiiiii
                     </div>
                     <h1 className='text-5xl font-display'>Player {username}</h1>
                     <div className="flex items-center justify-center gap-5">

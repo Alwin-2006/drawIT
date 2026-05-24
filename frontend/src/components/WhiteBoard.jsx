@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getSocket, onDrawing, sendDrawing } from '../socket.js';
+import { getSocket, onDrawing, onDrawingHistory, onClearDrawing, sendDrawing, sendClearDrawing } from '../socket.js';
 import { getCanvasCoordinates, drawLine, handlePointerDown, handlePointerMove } from '../utils/whiteboardUtils.js';
 
 function WhiteBoard({ room }) {
@@ -36,7 +36,7 @@ function WhiteBoard({ room }) {
       window.removeEventListener('resize', setupCanvas);
     };
   }, []);
-
+  
   useEffect(() => {
     const handler = (data) => {
       if (!data?.from || !data?.to) return;
@@ -50,11 +50,46 @@ function WhiteBoard({ room }) {
       });
     };
 
+    const historyHandler = (history) => {
+      if (!Array.isArray(history)) return;
+      history.forEach((data) => {
+        if (!data?.from || !data?.to) return;
+        drawLine({
+          ctx: ctxRef.current,
+          from: data.from,
+          to: data.to,
+          tool: data.tool,
+          color: data.color,
+          width: data.width,
+        });
+      });
+    };
+
     onDrawing(handler);
+    onDrawingHistory(historyHandler);
+
+    const clearHandler = () => {
+      const canvas = canvasRef.current;
+      const ctx = ctxRef.current;
+      if (!canvas || !ctx) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.restore();
+    };
+
+    onClearDrawing(clearHandler);
 
     return () => {
       const socket = getSocket();
-      if (socket) socket.off('drawing', handler);
+      if (socket) {
+        socket.off('drawing', handler);
+        socket.off('drawingHistory', historyHandler);
+        socket.off('clearDrawing', clearHandler);
+      }
     };
   }, []);
 
@@ -79,6 +114,8 @@ function WhiteBoard({ room }) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, rect.width, rect.height);
     ctx.restore();
+
+    if (room) sendClearDrawing({ room });
   };
 
   return (
@@ -106,7 +143,7 @@ function WhiteBoard({ room }) {
           Clear
         </button>
       </div>
-      <div className='relative flex-1 overflow-hidden rounded border border-[var(--color-primary)]'>
+      <div className='relative flex-1 overflow-hidden rounded '>
         <canvas
           ref={canvasRef}
           className='h-full w-full touch-none bg-white'

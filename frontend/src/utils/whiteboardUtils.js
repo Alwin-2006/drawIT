@@ -1,5 +1,30 @@
+/*
+    notes:
+     useRef to gain access to the canvas HTML
+    and ctx(given from canvas.getContext('2d')) is referring to the browser API which allows us to draw
+    getBoundingClientRect returns the rectangle surrounding the html-important for calculating positions of the pointer
+
+    1.getCanvasCoordinates-> returns the coordinates of the mouse, important because pixel can vary according to screen size
+
+    2.drawLine-
+    ctx.save()- stores all the info related to ctx like colors,tool etc
+    ctx.beginpath()- tells the browser API that we're drawing right now
+    ctx.moveto(x1,y1)- tells the browser what point we're at right now
+    ctx.lineto(x2,y2)-draws a line to x2,y2 from x1,y1 as done by ctx.moveto
+    ctx.stroke()- tells browser to apply changes
+    ctx.closePath()- not needed for free drawing but it connects end of the path back to the start
+
+    3. handlePointerdown-
+    gets the current pointer coordinates wrt to the canvas(using the 1. function)
+    
+
+*/
+
+
+
+
 export const getCanvasCoordinates = (event, canvas) => {
-  const rect = canvas.getBoundingClientRect();
+  const rect = canvas.getBoundingClientRect(); // gets the smallest boundary of canvas
   const ratioX = canvas.width / rect.width;
   const ratioY = canvas.height / rect.height;
 

@@ -36,28 +36,79 @@ const initSocket = (server) => {
             if (!room || !playerId) return;
             try {
                 const redisPlayerId = playerId.toString();
-                const existingScore = await redisClient.zscore(room, redisPlayerId);
-                if (existingScore === null) {
-                    await redisClient.zadd(room, 0,{ score: 0, playerID: redisPlayerId,playerName:playerName });
+
+                // Keys for player info and scores
+                const playersKey = `room:${room}:players`;
+                const scoresKey = `room:${room}:scores`;
+                
+                // If player not present, add to players hash and scores sorted set
+                const exists = await redisClient.hexists(playersKey, redisPlayerId);
+                if (!exists) {
+                    const playerObj = { playerId: redisPlayerId, playerName, score: 0 };
+                    await redisClient.hset(playersKey, redisPlayerId, JSON.stringify(playerObj));
+                    await redisClient.zadd(scoresKey, 0, redisPlayerId);
                 }
 
-                const leaderboard = await redisClient.zrevrange(room, 0, -1);
-                const formattedLeaderboard = leaderboard.map((entry) => ({
-                    playerId: entry.playerID,
-                    playerName,
-                    score: entry.score,
-                }));
+                // Read full player list from hash
+                const playersRaw = await redisClient.hgetall(playersKey);
+                console.log(playersRaw);
+                const players = Object.values(playersRaw).map((v) => JSON.parse(v));
 
                 socket.join(room);
-                socket.emit('roomLeaderboard', formattedLeaderboard);
+                // Send full players list to joining socket
+                socket.emit('roomPlayers', players);
+
+                const drawingKey = `room:${room}:data`;
+                const drawingEntries = await redisClient.lrange(drawingKey, 0, -1);
+                if (drawingEntries && drawingEntries.length) {
+                    const drawingHistory = drawingEntries.map((entry) => JSON.parse(entry));
+                    socket.emit('drawingHistory', drawingHistory);
+                }
+
+                // attach player/room info to socket for disconnect handling
+                socket.data = socket.data || {};
+                socket.data.room = room;
+                socket.data.playerId = redisPlayerId;
+                socket.data.playerName = playerName;
+
                 io.to(room).emit('playerJoined', { playerId, playerName });
             } catch (error) {
                 console.error('Redis joinRoom error:', error.message);
             }
         });
 
-        socket.on('drawing', (data) => {
-            if (data?.room) socket.to(data.room).emit('drawing', data);
+        socket.on('drawing', async (data) => {
+            if (!data?.room || !data?.from || !data?.to) return;
+
+            const payload = {
+                from: data.from,
+                to: data.to,
+                tool: data.tool || 'pencil',
+                color: data.color || '#000000',
+                width: data.width || 4,
+            };
+
+            socket.to(data.room).emit('drawing', payload);
+
+            try {
+                const drawingKey = `room:${data.room}:data`;
+                await redisClient.rpush(drawingKey, JSON.stringify(payload));
+            } catch (err) {
+                console.error('Redis save drawing error:', err.message || err);
+            }
+        });
+
+        // Clear saved drawing history for a room and notify all clients
+        socket.on('clearDrawing', async ({ room }) => {
+            if (!room) return;
+            try {
+                const drawingKey = `room:${room}:data`;
+                await redisClient.del(drawingKey);
+                io.to(room).emit('clearDrawing');
+            } catch (err) {socket.emit('roomPlayers', players);
+
+                console.error('Redis clear drawing error:', err.message || err);
+            }
         });
 
         socket.on('guess', ({ room, playerName, playerId, guess }) => {
@@ -66,8 +117,26 @@ const initSocket = (server) => {
 
         socket.on('correctGuess', async ({ room, playerId, points }) => {
             try {
-                if (playerId && points) {
-                    await redisClient.zIncrBy('game:leaderboard', points, playerId.toString());
+                if (playerId && points && room) {
+                    const scoresKey = `room:${room}:scores`;
+                    const playersKey = `room:${room}:players`;
+                    await redisClient.zincrby(scoresKey, points, playerId.toString());
+
+                    const raw = await redisClient.hget(playersKey, playerId.toString());
+                    if (raw) {
+                        try {
+                            const playerObj = JSON.parse(raw);
+                            playerObj.score = (playerObj.score || 0) + points;
+                            await redisClient.hset(playersKey, playerId.toString(), JSON.stringify(playerObj));
+                        } catch (e) {
+                            // ignore parse errors
+                        }
+                    }
+
+                    // send updated players list
+                    const playersRaw = await redisClient.hgetall(playersKey);
+                    const players = Object.values(playersRaw).map((v) => JSON.parse(v));
+                    io.to(room).emit('roomPlayers', players);
                 }
                 if (room) io.to(room).emit('correctGuess', { playerId, points });
             } catch (err) {
@@ -75,8 +144,27 @@ const initSocket = (server) => {
             }
         });
 
-        socket.on('disconnect', (reason) => {
+        socket.on('disconnect', async (reason) => {
             console.log('Socket disconnected:', socket.id, reason);
+            try {
+                const room = socket.data?.room;
+                const playerId = socket.data?.playerId;
+                const playerName = socket.data?.playerName;
+                if (room && playerId) {
+                    const playersKey = `room:${room}:players`;
+                    const scoresKey = `room:${room}:scores`;
+                    await redisClient.hdel(playersKey, playerId);
+                    await redisClient.zrem(scoresKey, playerId);
+
+                    // send updated players list
+                    const playersRaw = await redisClient.hgetall(playersKey);
+                    const players = Object.values(playersRaw).map((v) => JSON.parse(v));
+                    io.to(room).emit('roomPlayers', players);
+                    io.to(room).emit('playerLeft', { playerId, playerName });
+                }
+            } catch (err) {
+                console.error('Error handling disconnect cleanup:', err.message || err);
+            }
         });
     });
 

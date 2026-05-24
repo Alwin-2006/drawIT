@@ -74,49 +74,83 @@ const disconnectSocket = () => {
 };
 
 const joinRoom = ({ room, playerId, playerName }) => {
-  if (!socket) return;
-  socket.emit('joinRoom', { room, playerId, playerName });
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('joinRoom', { room, playerId, playerName });
 };
 
 const sendDrawing = (data) => {
-  if (!socket) return;
-  socket.emit('drawing', data);
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('drawing', data);
 };
 
-const sendGuess = ({ room, playerName,playerId, guess }) => {
-  if (!socket) return;
-  socket.emit('guess', { room, playerName,playerId, guess });
+const sendGuess = ({ room, playerName, playerId, guess }) => {
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('guess', { room, playerName, playerId, guess });
 };
 
 const sendCorrectGuess = ({ room, playerId, points }) => {
-  if (!socket) return;
-  socket.emit('correctGuess', { room, playerId, points });
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('correctGuess', { room, playerId, points });
+};
+
+const sendClearDrawing = ({ room }) => {
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('clearDrawing', { room });
 };
 
 const onPlayerJoined = (handler) => {
-  if (!socket) return;
-  socket.on('playerJoined', handler);
+  const client = createSocket();
+  client.on('playerJoined', handler);
 };
 
 const onDrawing = (handler) => {
-  if (!socket) return;
-  socket.on('drawing', handler);
+  const client = createSocket();
+  client.on('drawing', handler);
 };
 
 const onGuess = (handler) => {
-  if (!socket) return;
-  socket.on('guess', handler);
+  const client = createSocket();
+  client.on('guess', handler);
 };
 
 const onCorrectGuess = (handler) => {
-  if (!socket) return;
-  socket.on('correctGuess', handler);
+  const client = createSocket();
+  client.on('correctGuess', handler);
+};
+
+const onDrawingHistory = (handler) => {
+  const client = createSocket();
+  client.on('drawingHistory', handler);
+};
+
+const onClearDrawing = (handler) => {
+  const client = createSocket();
+  client.on('clearDrawing', handler);
+};
+
+const onRoomPlayers = (handler) => {
+  const client = createSocket();
+  client.on('roomPlayers', handler);
+};
+
+const onPlayerLeft = (handler) => {
+  const client = createSocket();
+  client.on('playerLeft', handler);
 };
 
 const offAll = () => {
   if (!socket) return;
   socket.off('playerJoined');
   socket.off('drawing');
+  socket.off('clearDrawing');
+  socket.off('drawingHistory');
+  socket.off('roomPlayers');
+  socket.off('playerLeft');
   socket.off('guess');
   socket.off('correctGuess');
   socket.off('connect');
@@ -136,9 +170,14 @@ export {
   joinAsGuest,
   getSocket,
   onPlayerJoined,
+  sendClearDrawing,
   onDrawing,
   onGuess,
   onCorrectGuess,
+  onDrawingHistory,
+  onClearDrawing,
+  onRoomPlayers,
+  onPlayerLeft,
   offAll,
 };
 
@@ -153,9 +192,14 @@ export default {
   sendDrawing,
   sendGuess,
   sendCorrectGuess,
+  sendClearDrawing,
   onPlayerJoined,
   onDrawing,
   onGuess,
   onCorrectGuess,
+  onDrawingHistory,
+  onClearDrawing,
+  onRoomPlayers,
+  onPlayerLeft,
   offAll,
 };
