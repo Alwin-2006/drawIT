@@ -11,15 +11,15 @@ const generateToken = (id) => {
 
 export const signup = async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { username, password } = req.body;
 
-        if (!username || !email || !password) {
+        if (!username  || !password) {
             return res.status(400).json({ error: "Please provide all required fields" });
         }
 
-        const existingPlayer = await Player.findOne({ $or: [{ username }, { email }] });
+        const existingPlayer = await Player.findOne({ $or: [{ username }] });
         if (existingPlayer) {
-            return res.status(400).json({ error: "Username or email already exists" });
+            return res.status(400).json({ error: "Username already exists" });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -27,7 +27,6 @@ export const signup = async (req, res) => {
 
         const newPlayer = new Player({
             username,
-            email,
             password: hashedPassword,
         });
 
@@ -37,7 +36,6 @@ export const signup = async (req, res) => {
             res.status(201).json({
                 _id: newPlayer._id,
                 username: newPlayer.username,
-                email: newPlayer.email,
                 rating: newPlayer.rating,
                 token
             });
@@ -66,7 +64,6 @@ export const login = async (req, res) => {
         res.status(200).json({
             _id: player._id,
             username: player.username,
-            email: player.email,
             rating: player.rating,
             token
         });

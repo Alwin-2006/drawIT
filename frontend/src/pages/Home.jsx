@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import useUserStore from '../store/userStore';
@@ -12,12 +12,14 @@ function Home() {
         <div>
             <div className='home-background flex items-center justify-center h-screen'>
                 <div className="font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 w-1/5 h-1/2 flex flex-col  justify-around gap-2 text-2xl">
+                    {usr?<div className='flex items-center justify-center'>{usr}</div>:
                     <input
                       className='text-2xl font-display text-center'
                       value={usr}
                       onChange={(event) => setUsername(event.target.value)}
                       placeholder='Enter username'
                     />
+                    }
                     <div>
                         AVATAR
                     </div>

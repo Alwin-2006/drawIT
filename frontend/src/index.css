@@ -88,3 +88,19 @@
   background-attachment: fixed;
   transition: background-color 0.3s ease;
 }
+
+/* Navbar spacing and fixed styling */
+:root {
+  --navbar-height: 72px;
+}
+
+nav.fixed {
+  height: var(--navbar-height);
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* Push page content below the fixed navbar */
+body {
+  padding-top: var(--navbar-height);
+}

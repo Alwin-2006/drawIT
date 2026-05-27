@@ -11,13 +11,6 @@ const playerSchema = new mongoose.Schema({
     unique: true,
     trim: true,
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true,
-  },
   rating: {
     type: Number,
     default: 1200, // Default rating
