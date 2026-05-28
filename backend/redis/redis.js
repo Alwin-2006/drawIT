@@ -5,9 +5,10 @@ dotenv.config();
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
-const client = new Redis(redisUrl);
-
-
+const client = new Redis(redisUrl, {
+  maxRetriesPerRequest: null,
+  enableOfflineQueue: false,
+});
 
 client.on("error", (err) => {
   console.error("Redis connection error:", err);

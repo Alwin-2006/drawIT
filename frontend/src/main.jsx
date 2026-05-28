@@ -18,6 +18,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />}>
           <Route index element={<Home />} />
           <Route path="game" element={<Game />} />
+          <Route path="game/:roomId" element={<Game />} />
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<SignUp />} />
           <Route path="rooms" element={<Rooms />} />

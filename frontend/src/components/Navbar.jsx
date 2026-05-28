@@ -1,12 +1,22 @@
 import React from 'react'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import "../index.css";
 import useUserStore from '../store/userStore';
-
+import { disconnectSocket, offAll } from '../socket';
 
 function Navbar() {
     const user = useUserStore((state)=>state.username);
+    const isAuthenticated = useUserStore((state)=>state.isAuthenticated);
+    const logout = useUserStore((state)=>state.logout);
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        offAll();
+        disconnectSocket();
+        logout();
+        navigate('/');
+    };
+
     return (
         <>
             <nav className="fixed top-0 w-full bg-[var(--color-neutral)]  border-[var(--color-primary)] border-4 flex items-center justify-between px-5 py-3 font-mono">
@@ -19,13 +29,23 @@ function Navbar() {
                     <Link to="/leaderboard">Leaderboard</Link>
                 </div>
                 {
-                    user?<div>{user}</div>:
-                <div className="flex justify-center text-sm items-center gap-5">
-                    
-                    <Link to="/login" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Login</Link>
-                    <Link to="/signup" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Signup</Link>
-                </div>
-}
+                    isAuthenticated ? (
+                        <div className="flex items-center gap-3">
+                            <span>{user}</span>
+                            <button
+                                onClick={handleLogout}
+                                className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer hover:bg-[var(--color-secondary)] transition-colors"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex justify-center text-sm items-center gap-5">
+                            <Link to="/login" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Login</Link>
+                            <Link to="/signup" className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-4 py-2 rounded-xl cursor-pointer">Signup</Link>
+                        </div>
+                    )
+                }
             </nav>
         </>
     )

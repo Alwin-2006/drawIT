@@ -1,7 +1,9 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import redisClient from "./redis/redis.js";
+import registerCasualQueueEvents from "./queues/casualQueueSocket.js";
 
+const MAX_ROOM_PLAYERS = 4;
 let io;
 
 const initSocket = (server) => {
@@ -31,11 +33,19 @@ const initSocket = (server) => {
 
     io.on('connection', (socket) => {
         console.log('Socket connected:', socket.id, 'user:', socket.user?.id || socket.user?.username || 'unknown');
+
+        registerCasualQueueEvents(socket);
         
         socket.on('joinRoom', async ({ room, playerId, playerName }) => {
             if (!room || !playerId) return;
             try {
                 const redisPlayerId = playerId.toString();
+                const roomState = io.sockets.adapter.rooms.get(room);
+                const roomSize = roomState ? roomState.size : 0;
+                if (roomSize >= MAX_ROOM_PLAYERS) {
+                    socket.emit('joinRoomError', { message: 'Room is full.' });
+                    return;
+                }
 
                 // Keys for player info and scores
                 const playersKey = `room:${room}:players`;
@@ -55,6 +65,11 @@ const initSocket = (server) => {
                 const players = Object.values(playersRaw).map((v) => JSON.parse(v));
 
                 socket.join(room);
+                socket.emit('joinedRoom', {
+                    room,
+                    playerId: redisPlayerId,
+                    playerName,
+                });
                 // Send full players list to joining socket
                 socket.emit('roomPlayers', players);
 
@@ -172,3 +187,5 @@ const initSocket = (server) => {
 };
 
 export default initSocket;
+
+export const getIo = () => io;

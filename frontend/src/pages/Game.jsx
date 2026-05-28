@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import {
   connectGuest,
   disconnectSocket,
   joinAsGuest,
   offAll,
+  onJoinedRoom,
   onPlayerJoined,
   onRoomPlayers,
   onPlayerLeft,
   onGuess,
   onCorrectGuess,
   sendGuess,
+  sendPlayCasual,
 } from '../socket.js';
 import WhiteBoard from '../components/WhiteBoard.jsx';
 import useUserStore from '../store/userStore.js';
@@ -40,37 +43,91 @@ function Game() {
   const [messages, setMessages] = useState([]);
   const [guessValue, setGuessValue] = useState('');
   const [status, setStatus] = useState('Connecting...');
-  const playerName = useUserStore((state) => state.username);
-  const setUsername = useUserStore((state) => state.setUsername);
+  const authPlayerName = useUserStore((state) => state.username);
+  const authPlayerId = useUserStore((state) => state.playerId);
   const rating = useUserStore((state) => state.rating);
-  const [playerId] = useState(() => `guest-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const [localPlayerName, setLocalPlayerName] = useState('');
+  const [localPlayerId, setLocalPlayerId] = useState('');
+  const { roomId } = useParams();
+  const location = useLocation();
 
   useEffect(() => {
-    if (!playerName) {
-      setUsername(`Guest-${Math.floor(1000 + Math.random() * 9000)}`);
+    const routeState = location.state || {};
+
+    if (authPlayerName) {
+      setLocalPlayerName(authPlayerName);
+    } else if (routeState.playerName) {
+      setLocalPlayerName(routeState.playerName);
     }
-  }, [playerName, setUsername]);
+
+    if (authPlayerId) {
+      setLocalPlayerId(authPlayerId);
+    } else if (routeState.playerId) {
+      setLocalPlayerId(routeState.playerId);
+    }
+  }, [authPlayerName, authPlayerId, location.state]);
+
   const [word, setWord]= useState(sampleword);
   const [hideword,setHideword]=  useState('');
-  const roomCode = 'party-6767676767';
+  const roomCode = roomId || 'party-6767676767';
 
   useEffect(() => {
-    if (!playerName) return;
-
     const setup = async () => {
+      const routeState = location.state || {};
+      const currentPlayerName = localPlayerName || authPlayerName || routeState.playerName || 'Guest';
+      let currentPlayerId = localPlayerId || authPlayerId || routeState.playerId;
+
+      if (!currentPlayerId) {
+        currentPlayerId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        setLocalPlayerId(currentPlayerId);
+      }
+
+      setLocalPlayerName(currentPlayerName);
+
       const client = await connectGuest();
       const joinRoom = () => {
         setStatus('Connected');
-        joinAsGuest({ room: roomCode, playerId, playerName });
+        joinAsGuest({ room: roomCode, playerId: currentPlayerId, playerName: currentPlayerName });
       };
       if (client.connected) {
         joinRoom();
       } else {
         client.once('connect', joinRoom);
       }
+
+      // Listen for casual queue events
+      client.on('playCasualQueued', (payload) => {
+        setMessages((prev) => [
+          ...prev,
+          { playerName: 'System', text: `Queued for casual match (job ${payload.jobId}).` },
+        ]);
+      });
+
+      client.on('playCasualError', (err) => {
+        setMessages((prev) => [
+          ...prev,
+          { playerName: 'System', text: `Queue error: ${err?.message || err}` },
+        ]);
+      });
+
+      client.on('matched', (data) => {
+        setMessages((prev) => [
+          ...prev,
+          { playerName: 'System', text: `Matched with ${data?.opponent?.name || 'unknown'}` },
+        ]);
+      });
     };
 
     setup();
+
+    onJoinedRoom((payload) => {
+      if (payload?.playerName) {
+        setLocalPlayerName(payload.playerName);
+      }
+      if (payload?.playerId) {
+        setLocalPlayerId(payload.playerId);
+      }
+    });
 
     onPlayerJoined((payload) => {
       setHideword("_".repeat(word.length));
@@ -120,13 +177,13 @@ function Game() {
       offAll();
       disconnectSocket();
     };
-  }, [playerId, playerName, roomCode]);
+  }, [authPlayerId, authPlayerName, localPlayerId, localPlayerName, location.state, roomCode]);
 
   const handleSendGuess = (event) => {
     event.preventDefault();
     if (!guessValue.trim()) return;
 
-    sendGuess({ room: roomCode,playerName, playerId, guess: guessValue.trim() });
+    sendGuess({ room: roomCode, playerName: localPlayerName || authPlayerName || 'Guest', playerId: localPlayerId || authPlayerId, guess: guessValue.trim() });
     
     setGuessValue('');
   };
@@ -135,9 +192,13 @@ function Game() {
     <div className='home-background flex flex-col'>
       <div className='flex items-center justify-between gap-3 p-2'>
         <span className='font-mono p-2 gap-10 text-2xl w-1/5'>{status}</span>
+        <div className='font-mono text-sm text-[var(--color-primary)] bg-[var(--color-neutral)] border-4 border-[var(--color-primary)] p-2 rounded w-1/5 flex flex-col items-center justify-center'>
+          <span className='font-bold'>Room</span>
+          <span>{roomCode}</span>
+        </div>
         <span className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 flex flex-col items-center justify-center gap-10 text-2xl w-1/2'>{hideword}</span>
         <span className='font-display bg-[var(--color-secondary)] text-[var(--color-primary)] border-[var(--color-primary)] p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center gap-2 text-sm w-1/5'>
-          <span>{playerName || 'Guest'}</span>
+          <span>{localPlayerName || authPlayerName || 'Guest'}</span>
           <span className='text-xs'>Rating: {rating}</span>
         </span>
       </div>

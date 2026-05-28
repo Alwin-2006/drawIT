@@ -39,17 +39,43 @@ const createSocket = (token) => {
   return socket;
 };
 
+const waitForConnection = (client) => {
+  return new Promise((resolve, reject) => {
+    if (client.connected) {
+      return resolve(client);
+    }
+
+    const onConnect = () => {
+      cleanup();
+      resolve(client);
+    };
+
+    const onConnectError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const cleanup = () => {
+      client.off('connect', onConnect);
+      client.off('connect_error', onConnectError);
+    };
+
+    client.once('connect', onConnect);
+    client.once('connect_error', onConnectError);
+    if (!client.connected) {
+      client.connect();
+    }
+  });
+};
+
 const connectSocket = async (token) => {
   const client = createSocket(token);
-  if (!client.connected) {
-    if (token) {
-      client.auth = { token };
-    } else {
-      client.auth = {};
-    }
-    client.connect();
+  if (token) {
+    client.auth = { token };
+  } else {
+    client.auth = {};
   }
-  return client;
+  return waitForConnection(client);
 };
 
 const connectGuest = () => connectSocket();
@@ -103,6 +129,28 @@ const sendClearDrawing = ({ room }) => {
   client.emit('clearDrawing', { room });
 };
 
+const sendPlayCasual = ({ playerId, playerName, preferences } = {}) => {
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  console.log(playerId,playerName,preferences);
+  client.emit('playCasual', { playerId, playerName, preferences });
+};
+
+const onPlayCasualQueued = (handler) => {
+  const client = createSocket();
+  client.on('playCasualQueued', handler);
+};
+
+const onPlayCasualError = (handler) => {
+  const client = createSocket();
+  client.on('playCasualError', handler);
+};
+
+const onMatched = (handler) => {
+  const client = createSocket();
+  client.on('matched', handler);
+};
+
 const onPlayerJoined = (handler) => {
   const client = createSocket();
   client.on('playerJoined', handler);
@@ -143,6 +191,11 @@ const onPlayerLeft = (handler) => {
   client.on('playerLeft', handler);
 };
 
+const onJoinedRoom = (handler) => {
+  const client = createSocket();
+  client.on('joinedRoom', handler);
+};
+
 const offAll = () => {
   if (!socket) return;
   socket.off('playerJoined');
@@ -151,8 +204,12 @@ const offAll = () => {
   socket.off('drawingHistory');
   socket.off('roomPlayers');
   socket.off('playerLeft');
+  socket.off('joinedRoom');
   socket.off('guess');
   socket.off('correctGuess');
+  socket.off('playCasualQueued');
+  socket.off('playCasualError');
+  socket.off('matched');
   socket.off('connect');
   socket.off('disconnect');
   socket.off('connect_error');
@@ -166,6 +223,7 @@ export {
   sendDrawing,
   sendGuess,
   sendCorrectGuess,
+  sendPlayCasual,
   connectGuest,
   joinAsGuest,
   getSocket,
@@ -178,6 +236,10 @@ export {
   onClearDrawing,
   onRoomPlayers,
   onPlayerLeft,
+  onJoinedRoom,
+  onPlayCasualQueued,
+  onPlayCasualError,
+  onMatched,
   offAll,
 };
 
@@ -192,6 +254,7 @@ export default {
   sendDrawing,
   sendGuess,
   sendCorrectGuess,
+  sendPlayCasual,
   sendClearDrawing,
   onPlayerJoined,
   onDrawing,
@@ -201,5 +264,9 @@ export default {
   onClearDrawing,
   onRoomPlayers,
   onPlayerLeft,
+  onJoinedRoom,
+  onPlayCasualQueued,
+  onPlayCasualError,
+  onMatched,
   offAll,
 };

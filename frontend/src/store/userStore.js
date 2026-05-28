@@ -8,6 +8,7 @@ const useUserStore = create(
       username: '',
       rating: 0,
       token: '',
+      playerId: '',
       isAuthenticated: false,
 
       setUser: (user) =>
@@ -16,12 +17,14 @@ const useUserStore = create(
           username: user.username,
           rating: user.rating,
           token: user.token,
+          playerId: user.playerId || '',
           isAuthenticated: true,
         }),
 
       setUsername: (username) => set({ username }),
       setRating: (rating) => set({ rating }),
       setToken: (token) => set({ token }),
+      setPlayerId: (playerId) => set({ playerId }),
 
       resetUser: () =>
         set({
@@ -29,8 +32,23 @@ const useUserStore = create(
           username: '',
           rating: 0,
           token: '',
+          playerId: '',
           isAuthenticated: false,
         }),
+
+      logout: () => {
+        set({
+          _id: '',
+          username: '',
+          rating: 0,
+          token: '',
+          playerId: '',
+          isAuthenticated: false,
+        });
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      },
     }),
     {
       name: 'user-store',
@@ -39,6 +57,7 @@ const useUserStore = create(
         username: state.username,
         rating: state.rating,
         token: state.token,
+        playerId: state.playerId,
         isAuthenticated: state.isAuthenticated,
       }),
     }
