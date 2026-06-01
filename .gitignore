@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local documentation
+CHANGES_DOCUMENTATION.md

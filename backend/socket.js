@@ -130,6 +130,38 @@ const initSocket = (server) => {
             if (room) io.to(room).emit('guess', { playerName, guess });
         });
 
+        socket.on('submitWord', async ({ room, playerId, playerName, word }) => {
+            if (!room || !word) return;
+            try {
+                const wordsKey = `room:${room}:words`;
+                const submittedPlayersKey = `room:${room}:submittedPlayers`;
+                const playersKey = `room:${room}:players`;
+                
+                // Store word with player info
+                await redisClient.rpush(wordsKey, JSON.stringify({ word, playerId, playerName }));
+                
+                // Add player to submitted set
+                await redisClient.sadd(submittedPlayersKey, playerId);
+                
+                // Get total players and submitted count
+                const playersRaw = await redisClient.hgetall(playersKey);
+                const totalPlayers = Object.keys(playersRaw).length;
+                const submittedCount = await redisClient.scard(submittedPlayersKey);
+                
+                console.log(`Word submitted: ${word} by ${playerName} for room ${room}. Submitted: ${submittedCount}/${totalPlayers}`);
+                
+                // Notify room of submission status
+                io.to(room).emit('wordSubmitted', {
+                    playerName,
+                    submittedCount,
+                    totalPlayers,
+                    allSubmitted: submittedCount === totalPlayers,
+                });
+            } catch (error) {
+                console.error('Redis submitWord error:', error.message);
+            }
+        });
+
         socket.on('correctGuess', async ({ room, playerId, points }) => {
             try {
                 if (playerId && points && room) {

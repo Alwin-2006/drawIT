@@ -136,6 +136,12 @@ const sendPlayCasual = ({ playerId, playerName, preferences } = {}) => {
   client.emit('playCasual', { playerId, playerName, preferences });
 };
 
+const sendSubmitWord = ({ room, playerId, playerName, word }) => {
+  const client = createSocket();
+  if (!client.connected) client.connect();
+  client.emit('submitWord', { room, playerId, playerName, word });
+};
+
 const onPlayCasualQueued = (handler) => {
   const client = createSocket();
   client.on('playCasualQueued', handler);
@@ -149,6 +155,16 @@ const onPlayCasualError = (handler) => {
 const onMatched = (handler) => {
   const client = createSocket();
   client.on('matched', handler);
+};
+
+const onRoundStart = (handler) => {
+  const client = createSocket();
+  client.on('roundStart', handler);
+};
+
+const onWordSubmitted = (handler) => {
+  const client = createSocket();
+  client.on('wordSubmitted', handler);
 };
 
 const onPlayerJoined = (handler) => {
@@ -210,6 +226,8 @@ const offAll = () => {
   socket.off('playCasualQueued');
   socket.off('playCasualError');
   socket.off('matched');
+  socket.off('roundStart');
+  socket.off('wordSubmitted');
   socket.off('connect');
   socket.off('disconnect');
   socket.off('connect_error');
@@ -224,6 +242,7 @@ export {
   sendGuess,
   sendCorrectGuess,
   sendPlayCasual,
+  sendSubmitWord,
   connectGuest,
   joinAsGuest,
   getSocket,
@@ -240,6 +259,8 @@ export {
   onPlayCasualQueued,
   onPlayCasualError,
   onMatched,
+  onRoundStart,
+  onWordSubmitted,
   offAll,
 };
 
@@ -255,6 +276,7 @@ export default {
   sendGuess,
   sendCorrectGuess,
   sendPlayCasual,
+  sendSubmitWord,
   sendClearDrawing,
   onPlayerJoined,
   onDrawing,
@@ -268,5 +290,7 @@ export default {
   onPlayCasualQueued,
   onPlayCasualError,
   onMatched,
+  onRoundStart,
+  onWordSubmitted,
   offAll,
 };

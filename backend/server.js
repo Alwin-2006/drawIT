@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectToMongoDB from "./db/connectToMongoDB.js";
 import authRoutes from "./routes/authRoutes.js";
+import gameRoutes from "./routes/gameRoutes.js";
 import redisClient from "./redis/redis.js";
 import initSocket from "./socket.js";
 import { createCasualWorker } from "./queues/casualWorker.js";
@@ -31,6 +32,7 @@ app.use((req, res, next) => {
 app.use(express.json()); // to parse req.body
 
 app.use("/api/auth", authRoutes);
+app.use("/api/game", gameRoutes);
 
 const server = http.createServer(app);
 

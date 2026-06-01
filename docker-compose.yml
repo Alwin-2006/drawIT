@@ -47,13 +47,17 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: dockerfile.dev
     container_name: mern-frontend
     restart: always
     ports:
-      - "5173:${FRONTEND_PORT}"
+      - "5173:5173"
     environment:
       - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT}
+    volumes:
+      - ./frontend/src:/usr/src/app/src
+      - ./frontend/index.html:/usr/src/app/index.html
+      - ./frontend/vite.config.js:/usr/src/app/vite.config.js
     depends_on:
       - backend
     networks:
