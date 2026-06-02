@@ -4,7 +4,74 @@ import redisClient from "./redis/redis.js";
 import registerCasualQueueEvents from "./queues/casualQueueSocket.js";
 
 const MAX_ROOM_PLAYERS = 4;
+export const ROUND_DURATION_MS = 60000;
+export const GUESS_POINTS_MAX = 500;
+export const GUESS_POINTS_MIN = 50;
+export const GUESS_POINTS_DECAY_PER_SEC = 10;
+
 let io;
+// In-memory timers per room to end rounds on timeout (cleared when round ends early)
+const roomTimers = new Map();
+// Round start timestamps (ms) for time-based scoring — O(1) lookup per guess
+const roundStartTimes = new Map();
+
+/** Points for a correct guess: max(50, 500 - elapsedSeconds * 10) */
+export const calculateGuessPoints = (elapsedSeconds) => {
+    const elapsed = Math.max(0, Math.floor(elapsedSeconds));
+    return Math.max(GUESS_POINTS_MIN, GUESS_POINTS_MAX - elapsed * GUESS_POINTS_DECAY_PER_SEC);
+};
+
+export const getRoundElapsedSeconds = (room) => {
+    const startedAt = roundStartTimes.get(room);
+    if (!startedAt) return 0;
+    return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+};
+
+const markRoundStarted = async (room) => {
+    const now = Date.now();
+    roundStartTimes.set(room, now);
+    try {
+        await redisClient.set(`room:${room}:roundStartedAt`, String(now));
+    } catch (e) {
+        console.error('Failed to persist round start time:', e.message || e);
+    }
+};
+
+const clearRoundStartTime = async (room) => {
+    roundStartTimes.delete(room);
+    try {
+        await redisClient.del(`room:${room}:roundStartedAt`);
+    } catch (e) {
+        /* ignore */
+    }
+};
+
+const normalizePlayerId = (id) => (id == null ? '' : String(id).trim());
+
+const normalizeWord = (word) =>
+    String(word ?? '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ');
+
+const checkAllNonDrawersGuessed = async (room, drawerId, playersRaw) => {
+    const guessedPlayersKey = `room:${room}:guessedPlayers`;
+    const allPlayerIds = Object.keys(playersRaw);
+    const normalizedDrawerId = normalizePlayerId(drawerId);
+
+    const nonDrawerIds = normalizedDrawerId
+        ? allPlayerIds.filter((id) => normalizePlayerId(id) !== normalizedDrawerId)
+        : allPlayerIds;
+
+    if (nonDrawerIds.length === 0) {
+        return false;
+    }
+
+    const guessedIds = await redisClient.smembers(guessedPlayersKey);
+    const guessedSet = new Set(guessedIds.map(normalizePlayerId));
+
+    return nonDrawerIds.every((id) => guessedSet.has(normalizePlayerId(id)));
+};
 
 const initSocket = (server) => {
     if (io) return io;
@@ -15,6 +82,8 @@ const initSocket = (server) => {
             methods: ['GET', 'POST']
         }
     });
+
+    // TTL/key-expiration handling removed — rounds are ended only when all players have guessed.
 
     // Simple token auth for socket connections
     /*io.use((socket, next) => {
@@ -39,9 +108,11 @@ const initSocket = (server) => {
         socket.on('joinRoom', async ({ room, playerId, playerName }) => {
             if (!room || !playerId) return;
             try {
-                const redisPlayerId = playerId.toString();
+                const redisPlayerId = normalizePlayerId(playerId);
+                if (!redisPlayerId) return;
                 const roomState = io.sockets.adapter.rooms.get(room);
                 const roomSize = roomState ? roomState.size : 0;
+                
                 if (roomSize >= MAX_ROOM_PLAYERS) {
                     socket.emit('joinRoomError', { message: 'Room is full.' });
                     return;
@@ -51,12 +122,25 @@ const initSocket = (server) => {
                 const playersKey = `room:${room}:players`;
                 const scoresKey = `room:${room}:scores`;
                 
-                // If player not present, add to players hash and scores sorted set
+                
+                // Add or update player entry in players hash and ensure scores sorted set
                 const exists = await redisClient.hexists(playersKey, redisPlayerId);
+                let playerObj;
                 if (!exists) {
-                    const playerObj = { playerId: redisPlayerId, playerName, score: 0 };
+                    playerObj = { playerId: redisPlayerId, playerName, score: 0, socketId: socket.id };
                     await redisClient.hset(playersKey, redisPlayerId, JSON.stringify(playerObj));
                     await redisClient.zadd(scoresKey, 0, redisPlayerId);
+                } else {
+                    // preserve existing score while updating socketId and playerName
+                    const raw = await redisClient.hget(playersKey, redisPlayerId);
+                    try {
+                        playerObj = JSON.parse(raw);
+                        playerObj.socketId = socket.id;
+                        playerObj.playerName = playerName || playerObj.playerName;
+                    } catch (e) {
+                        playerObj = { playerId: redisPlayerId, playerName, score: 0, socketId: socket.id };
+                    }
+                    await redisClient.hset(playersKey, redisPlayerId, JSON.stringify(playerObj));
                 }
 
                 // Read full player list from hash
@@ -120,14 +204,83 @@ const initSocket = (server) => {
                 const drawingKey = `room:${room}:data`;
                 await redisClient.del(drawingKey);
                 io.to(room).emit('clearDrawing');
-            } catch (err) {socket.emit('roomPlayers', players);
-
+            } catch (err) {
                 console.error('Redis clear drawing error:', err.message || err);
             }
         });
 
-        socket.on('guess', ({ room, playerName, playerId, guess }) => {
-            if (room) io.to(room).emit('guess', { playerName, guess });
+        socket.on('guess', async ({ room, playerName, playerId, guess }) => {
+            if (!room || !guess) return;
+
+            try {
+                const currentWordKey = `room:${room}:currentWord`;
+                const currentDrawerKey = `room:${room}:currentDrawer`;
+                const guessedPlayersKey = `room:${room}:guessedPlayers`;
+                const currentWord = await redisClient.get(currentWordKey);
+                const currentDrawer = await redisClient.get(currentDrawerKey);
+                const guessNormalized = normalizeWord(guess);
+                const isCorrect = Boolean(currentWord && guessNormalized === currentWord);
+
+                // Always broadcast the guess to the room (chat)
+                io.to(room).emit('guess', { playerName, guess });
+
+                // If correct, award time-based points once per non-drawer guesser
+                if (isCorrect && playerId) {
+                    const guesserId = normalizePlayerId(playerId);
+                    const drawerId = normalizePlayerId(currentDrawer);
+                    const scoresKey = `room:${room}:scores`;
+                    const playersKey = `room:${room}:players`;
+
+                    const isDrawer = guesserId && guesserId === drawerId;
+                    const alreadyGuessed =
+                        !isDrawer &&
+                        guesserId &&
+                        (await redisClient.sismember(guessedPlayersKey, guesserId));
+
+                    if (!isDrawer && guesserId && !alreadyGuessed) {
+                        const elapsedSeconds = getRoundElapsedSeconds(room);
+                        const points = calculateGuessPoints(elapsedSeconds);
+
+                        await redisClient.zincrby(scoresKey, points, guesserId);
+
+                        const raw = await redisClient.hget(playersKey, guesserId);
+                        if (raw) {
+                            try {
+                                const playerObj = JSON.parse(raw);
+                                playerObj.score = (playerObj.score || 0) + points;
+                                await redisClient.hset(playersKey, guesserId, JSON.stringify(playerObj));
+                            } catch (e) {
+                                // ignore parse errors
+                            }
+                        }
+
+                        await redisClient.sadd(guessedPlayersKey, guesserId);
+
+                        const updatedPlayersRaw = await redisClient.hgetall(playersKey);
+                        const players = Object.values(updatedPlayersRaw).map((v) =>
+                            JSON.parse(v),
+                        );
+                        io.to(room).emit('roomPlayers', players);
+                        io.to(room).emit('correctGuess', {
+                            playerId: guesserId,
+                            playerName,
+                            points,
+                            elapsedSeconds,
+                        });
+
+                        const allGuessed = await checkAllNonDrawersGuessed(
+                            room,
+                            currentDrawer,
+                            updatedPlayersRaw,
+                        );
+                        if (allGuessed) {
+                            await endRoundForRoom(room, 'all_guessed');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error processing guess:', error.message);
+            }
         });
 
         socket.on('submitWord', async ({ room, playerId, playerName, word }) => {
@@ -161,35 +314,7 @@ const initSocket = (server) => {
                 console.error('Redis submitWord error:', error.message);
             }
         });
-
-        socket.on('correctGuess', async ({ room, playerId, points }) => {
-            try {
-                if (playerId && points && room) {
-                    const scoresKey = `room:${room}:scores`;
-                    const playersKey = `room:${room}:players`;
-                    await redisClient.zincrby(scoresKey, points, playerId.toString());
-
-                    const raw = await redisClient.hget(playersKey, playerId.toString());
-                    if (raw) {
-                        try {
-                            const playerObj = JSON.parse(raw);
-                            playerObj.score = (playerObj.score || 0) + points;
-                            await redisClient.hset(playersKey, playerId.toString(), JSON.stringify(playerObj));
-                        } catch (e) {
-                            // ignore parse errors
-                        }
-                    }
-
-                    // send updated players list
-                    const playersRaw = await redisClient.hgetall(playersKey);
-                    const players = Object.values(playersRaw).map((v) => JSON.parse(v));
-                    io.to(room).emit('roomPlayers', players);
-                }
-                if (room) io.to(room).emit('correctGuess', { playerId, points });
-            } catch (err) {
-                console.error('Error updating score:', err.message);
-            }
-        });
+              
 
         socket.on('disconnect', async (reason) => {
             console.log('Socket disconnected:', socket.id, reason);
@@ -221,3 +346,68 @@ const initSocket = (server) => {
 export default initSocket;
 
 export const getIo = () => io;
+
+export const clearRoomTimer = (room) => {
+    try {
+        const t = roomTimers.get(room);
+        if (t) {
+            clearTimeout(t);
+            roomTimers.delete(room);
+        }
+    } catch (e) {
+        // ignore
+    }
+};
+
+/** End the active round and broadcast `endRound` to the room (idempotent). */
+export const endRoundForRoom = async (room, reason) => {
+    if (!room) return false;
+
+    clearRoomTimer(room);
+    await clearRoundStartTime(room);
+
+    const currentWordKey = `room:${room}:currentWord`;
+    const currentDrawerKey = `room:${room}:currentDrawer`;
+    const guessedPlayersKey = `room:${room}:guessedPlayers`;
+
+    const currentWord = await redisClient.get(currentWordKey);
+    if (!currentWord) {
+        return false;
+    }
+
+    try {
+        await redisClient.del(currentWordKey);
+        await redisClient.del(currentDrawerKey);
+        await redisClient.del(guessedPlayersKey);
+    } catch (e) {
+        console.error('Failed to cleanup round keys:', e.message || e);
+    }
+
+    const ioLocal = getIo();
+    if (ioLocal) {
+        ioLocal.to(room).emit('endRound', { room, reason, word: currentWord });
+    }
+    return true;
+};
+
+// Start a timer for a room which emits endRound when it expires.
+export const setRoomTimer = (room, duration = ROUND_DURATION_MS) => {
+    try {
+        clearRoomTimer(room);
+        markRoundStarted(room);
+
+        const t = setTimeout(async () => {
+            try {
+                await endRoundForRoom(room, 'timeout');
+            } catch (err) {
+                console.error('Error in room timer handler:', err.message || err);
+            } finally {
+                roomTimers.delete(room);
+            }
+        }, duration);
+
+        roomTimers.set(room, t);
+    } catch (e) {
+        console.error('Failed to set room timer:', e.message || e);
+    }
+};

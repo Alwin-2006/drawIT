@@ -114,7 +114,12 @@ const sendDrawing = (data) => {
 const sendGuess = ({ room, playerName, playerId, guess }) => {
   const client = createSocket();
   if (!client.connected) client.connect();
-  client.emit('guess', { room, playerName, playerId, guess });
+  client.emit('guess', {
+    room,
+    playerName,
+    playerId: playerId == null ? '' : String(playerId).trim(),
+    guess,
+  });
 };
 
 const sendCorrectGuess = ({ room, playerId, points }) => {
@@ -167,6 +172,16 @@ const onWordSubmitted = (handler) => {
   client.on('wordSubmitted', handler);
 };
 
+const onEndRound = (handler) => {
+  const client = createSocket();
+  client.on('endRound', handler);
+};
+
+const onWordsPoolEmpty = (handler) => {
+  const client = createSocket();
+  client.on('wordsPoolEmpty', handler);
+};
+
 const onPlayerJoined = (handler) => {
   const client = createSocket();
   client.on('playerJoined', handler);
@@ -212,6 +227,22 @@ const onJoinedRoom = (handler) => {
   client.on('joinedRoom', handler);
 };
 
+/** Register game event handlers; returns unsubscribe that removes only those handlers. */
+const subscribeToGameEvents = (handlers) => {
+  const client = getSocket() || createSocket();
+  const entries = Object.entries(handlers).filter(([, handler]) => typeof handler === 'function');
+
+  for (const [event, handler] of entries) {
+    client.on(event, handler);
+  }
+
+  return () => {
+    for (const [event, handler] of entries) {
+      client.off(event, handler);
+    }
+  };
+};
+
 const offAll = () => {
   if (!socket) return;
   socket.off('playerJoined');
@@ -228,6 +259,8 @@ const offAll = () => {
   socket.off('matched');
   socket.off('roundStart');
   socket.off('wordSubmitted');
+  socket.off('endRound');
+  socket.off('wordsPoolEmpty');
   socket.off('connect');
   socket.off('disconnect');
   socket.off('connect_error');
@@ -261,6 +294,9 @@ export {
   onMatched,
   onRoundStart,
   onWordSubmitted,
+  onEndRound,
+  onWordsPoolEmpty,
+  subscribeToGameEvents,
   offAll,
 };
 
@@ -292,5 +328,8 @@ export default {
   onMatched,
   onRoundStart,
   onWordSubmitted,
+  onEndRound,
+  onWordsPoolEmpty,
+  subscribeToGameEvents,
   offAll,
 };
