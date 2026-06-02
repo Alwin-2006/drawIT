@@ -80,7 +80,7 @@ function Game() {
   const [localPlayerId, setLocalPlayerId] = useState('');
   const { roomId } = useParams();
   const location = useLocation();
-  
+
   // Game state
   const [gamePhase, setGamePhase] = useState('word-input'); // 'word-input', 'guessing', 'round-end'
   const [currentDrawer, setCurrentDrawer] = useState(null);
@@ -89,7 +89,7 @@ function Game() {
   const [timer, setTimer] = useState(60);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isGuessing, setIsGuessing] = useState(false);
-  
+
   // Submission tracking
   const [submittedCount, setSubmittedCount] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
@@ -166,7 +166,7 @@ function Game() {
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribeGameEvents = () => {};
+    let unsubscribeGameEvents = () => { };
 
     const onCasualQueued = (payload) => {
       setMessages((prev) => [
@@ -392,7 +392,7 @@ function Game() {
     localPlayerId,
     authPlayerId,
   ]);
-  
+
 
   return (
     <div className='home-background flex flex-col'>
@@ -440,8 +440,8 @@ function Game() {
                     className='w-64 rounded bg-[var(--color-neutral)] p-3 text-black border-2 border-[var(--color-primary)] text-lg'
                     disabled={hasSubmittedWord || gamePhase !== 'word-input'}
                   />
-                  <button 
-                    type='submit' 
+                  <button
+                    type='submit'
                     className='rounded bg-[var(--color-primary)] px-6 py-3 text-[var(--color-neutral)] hover:bg-[var(--color-secondary)] font-bold text-lg disabled:opacity-50'
                     disabled={hasSubmittedWord || gamePhase !== 'word-input'}
                   >
@@ -449,7 +449,7 @@ function Game() {
                   </button>
                 </form>
                 {submittedCount === totalPlayers && (
-                  <button 
+                  <button
                     onClick={(e) => handleStartRound({ event: e, submittedCount, totalPlayers, roomCode, localPlayerId, authPlayerId, setCurrentDrawer, setCurrentWord, setHideword, setGamePhase, setTimer, setIsDrawing, setIsGuessing })}
                     className='rounded bg-green-500 px-8 py-3 text-white font-bold text-lg hover:bg-green-600 mt-4'
                   >
@@ -460,7 +460,6 @@ function Game() {
             </div>
           ) : isDrawing ? (
             <div className='flex flex-col h-full relative'>
-              <div className='text-sm mb-2'>You are drawing! Everyone else is guessing.</div>
               <WhiteBoard room={roomCode} />
               {showRoundEndOverlay && (
                 <RoundEndOverlay
@@ -473,7 +472,6 @@ function Game() {
             </div>
           ) : (
             <div className='flex flex-col h-full relative'>
-              <div className='text-sm mb-2'>Guess the word being drawn!</div>
               <WhiteBoard room={roomCode} locked={true} />
               {showRoundEndOverlay && (
                 <RoundEndOverlay

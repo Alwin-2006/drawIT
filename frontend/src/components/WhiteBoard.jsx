@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { getSocket, onDrawing, onDrawingHistory, onClearDrawing, sendDrawing, sendClearDrawing } from '../socket.js';
 import { getCanvasCoordinates, drawLine, handlePointerDown, handlePointerMove } from '../utils/whiteboardUtils.js';
 
-function WhiteBoard({ room }) {
+function WhiteBoard({ room, locked = false }) {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -36,7 +36,7 @@ function WhiteBoard({ room }) {
       window.removeEventListener('resize', setupCanvas);
     };
   }, []);
-  
+
   useEffect(() => {
     const handler = (data) => {
       if (!data?.from || !data?.to) return;
@@ -103,6 +103,7 @@ function WhiteBoard({ room }) {
   };
 
   const handleClear = () => {
+    if (locked) return;
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
     if (!canvas || !ctx) return;
@@ -120,7 +121,7 @@ function WhiteBoard({ room }) {
 
   return (
     <div className='flex h-full w-full flex-col gap-2'>
-      <div className='flex items-center gap-2'>
+      <div className={`flex items-center gap-2 ${locked ? 'hidden' : ''}`}>
         <button
           type='button'
           className={`rounded border px-3 py-1 ${tool === 'pencil' ? 'bg-[var(--color-primary)] text-[var(--color-neutral)]' : 'bg-[var(--color-neutral)] text-[var(--color-primary)]'}`}
@@ -147,8 +148,14 @@ function WhiteBoard({ room }) {
         <canvas
           ref={canvasRef}
           className='h-full w-full touch-none bg-white'
-          onPointerDown={(e) => handlePointerDown(e, canvasRef, lastPointRef, isDrawingRef)}
-          onPointerMove={(e) => handlePointerMove(e, canvasRef, lastPointRef, isDrawingRef, ctxRef, tool, room, sendDrawing)}
+          onPointerDown={(e) => {
+            if (locked) return;
+            handlePointerDown(e, canvasRef, lastPointRef, isDrawingRef);
+          }}
+          onPointerMove={(e) => {
+            if (locked) return;
+            handlePointerMove(e, canvasRef, lastPointRef, isDrawingRef, ctxRef, tool, room, sendDrawing);
+          }}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
         />
