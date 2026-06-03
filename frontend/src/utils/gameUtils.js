@@ -1,86 +1,36 @@
 import { sendGuess, sendSubmitWord, sendClearDrawing } from '../socket.js';
 
 export const ROUND_END_DELAY_SEC = 7;
+const API_BASE = 'http://localhost:3000/api/game';
 
-export const handleRoundEnd = async ({
-  roomCode,
-  localPlayerId,
-  authPlayerId,
-  setGamePhase,
-  setCurrentDrawer,
-  setCurrentWord,
-  setHideword,
-  setTimer,
-  setIsDrawing,
-  setIsGuessing,
-  setMessages,
-  setShowRoundEndOverlay,
-}) => {
-  if (setShowRoundEndOverlay) {
-    setShowRoundEndOverlay(false);
-  }
+const fetchNextRound = async (roomCode, playerId) => {
+  const res = await fetch(`${API_BASE}/next-round`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ room: roomCode, playerId }),
+  });
+  return res.json();
+};
+
+export const handleRoundEnd = async ({ roomCode, playerId, dispatch }) => {
+  dispatch({ type: 'HIDE_ROUND_END_OVERLAY' });
   sendClearDrawing({ room: roomCode });
+
   try {
-    const response = await fetch('http://localhost:3000/api/game/next-round', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: roomCode, playerId: localPlayerId || authPlayerId }),
-    });
-    const data = await response.json();
+    const data = await fetchNextRound(roomCode, playerId);
     if (data.success) {
-      setCurrentDrawer(data.drawer);
-      setCurrentWord(data.word);
-      setHideword(data.hiddenWord);
-      setGamePhase('guessing');
-      setTimer(60);
-      setIsDrawing(data.drawer === (localPlayerId || authPlayerId));
-      setIsGuessing(data.drawer !== (localPlayerId || authPlayerId));
+      dispatch({ type: 'SET_GUESSING_PHASE', payload: { ...data, duration: 60 } });
     } else if (data.error?.includes('No words available')) {
-      setGamePhase('word-input');
-      setMessages((prev) => [
-        ...prev,
-        { playerName: 'System', text: 'All words used! Submit new words to start the next round.' },
-      ]);
+      dispatch({ type: 'SET_WORD_INPUT_PHASE' });
+      dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: 'All words used! Submit new words to start the next round.' } });
     }
   } catch (error) {
     console.error('Error fetching next round:', error);
-    setMessages((prev) => [
-      ...prev,
-      { playerName: 'System', text: 'Error starting next round.' },
-    ]);
+    dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: 'Error starting next round.' } });
   }
 };
 
-export const handleSendGuess = ({ event, guessValue, isDrawing, roomCode, localPlayerName, authPlayerName, localPlayerId, authPlayerId, setGuessValue }) => {
-  event.preventDefault();
-  if (!guessValue.trim() || isDrawing) return;
-
-  const playerId = localPlayerId || authPlayerId;
-  if (!playerId) return;
-
-  sendGuess({
-    room: roomCode,
-    playerName: localPlayerName || authPlayerName || 'Guest',
-    playerId: String(playerId).trim(),
-    guess: guessValue.trim(),
-  });
-  setGuessValue('');
-};
-
-export const handleSubmitWord = ({ event, wordValue, roomCode, localPlayerId, authPlayerId, localPlayerName, authPlayerName, setWordValue, setHasSubmittedWord, setMessages }) => {
-  event.preventDefault();
-  if (!wordValue.trim()) return;
-
-  sendSubmitWord({ room: roomCode, playerId: localPlayerId || authPlayerId, playerName: localPlayerName || authPlayerName || 'Guest', word: wordValue.trim() });
-  setWordValue('');
-  setHasSubmittedWord(true);
-  setMessages((prev) => [
-    ...prev,
-    { playerName: 'System', text: `${localPlayerName || authPlayerName || 'Guest'} submitted a word!` },
-  ]);
-};
-
-export const handleStartRound = async ({ event, submittedCount, totalPlayers, roomCode, localPlayerId, authPlayerId, setCurrentDrawer, setCurrentWord, setHideword, setGamePhase, setTimer, setIsDrawing, setIsGuessing }) => {
+export const handleStartRound = async ({ event, submittedCount, totalPlayers, roomCode, playerId, dispatch }) => {
   if (event) event.preventDefault();
   if (submittedCount !== totalPlayers) {
     alert('Not all players have submitted words yet!');
@@ -88,20 +38,9 @@ export const handleStartRound = async ({ event, submittedCount, totalPlayers, ro
   }
 
   try {
-    const response = await fetch('http://localhost:3000/api/game/next-round', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: roomCode, playerId: localPlayerId || authPlayerId }),
-    });
-    const data = await response.json();
+    const data = await fetchNextRound(roomCode, playerId);
     if (data.success) {
-      setCurrentDrawer(data.drawer);
-      setCurrentWord(data.word);
-      setHideword(data.hiddenWord);
-      setGamePhase('guessing');
-      setTimer(60);
-      setIsDrawing(data.drawer === (localPlayerId || authPlayerId));
-      setIsGuessing(data.drawer !== (localPlayerId || authPlayerId));
+      dispatch({ type: 'SET_GUESSING_PHASE', payload: { ...data, duration: 60 } });
     } else {
       alert(data.error);
     }
@@ -109,4 +48,33 @@ export const handleStartRound = async ({ event, submittedCount, totalPlayers, ro
     console.error('Error starting round:', error);
     alert('Error starting round');
   }
+};
+
+export const handleSendGuess = ({ event, guessValue, isDrawing, roomCode, playerName, playerId, setGuessValue }) => {
+  event.preventDefault();
+  if (!guessValue.trim() || isDrawing) return;
+  if (!playerId) return;
+
+  sendGuess({
+    room: roomCode,
+    playerName: playerName || 'Guest',
+    playerId: String(playerId).trim(),
+    guess: guessValue.trim(),
+  });
+  setGuessValue('');
+};
+
+export const handleSubmitWord = ({ event, wordValue, roomCode, playerId, playerName, dispatch, setWordValue }) => {
+  event.preventDefault();
+  if (!wordValue.trim()) return;
+
+  sendSubmitWord({
+    room: roomCode,
+    playerId: playerId,
+    playerName: playerName || 'Guest',
+    word: wordValue.trim(),
+  });
+  setWordValue('');
+  dispatch({ type: 'SET_HAS_SUBMITTED_WORD', payload: true });
+  dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: `You submitted a word!` } });
 };
