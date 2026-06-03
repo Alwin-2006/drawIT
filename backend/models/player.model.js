@@ -23,9 +23,6 @@ const playerSchema = new mongoose.Schema({
   timestamps: true // This will automatically add createdAt and updatedAt
 });
 
-// Note: Mongoose automatically adds an '_id' field to act as the primary key.
-// If you need a virtual 'id' field that maps to '_id', you can use:
-// playerSchema.virtual('id').get(function() { return this._id.toHexString(); });
-// playerSchema.set('toJSON', { virtuals: true });
+playerSchema.index({ rating: -1 });
 
 export const Player = mongoose.model('Player', playerSchema);
