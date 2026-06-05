@@ -17,7 +17,8 @@ const useUserStore = create(
           username: user.username,
           rating: user.rating,
           token: user.token,
-          playerId: user.playerId || '',
+          // Support both explicit playerId and fallback to _id (for pre-existing sessions)
+          playerId: user.playerId || user._id || '',
           isAuthenticated: true,
         }),
 

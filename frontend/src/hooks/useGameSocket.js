@@ -1,49 +1,67 @@
 import { useEffect } from 'react';
 import {
-    connectGuest,
-    joinAsGuest,
+    createSocket,
     subscribeToGameEvents,
     getSocket,
     disconnectSocket,
 } from '../socket.js';
+import useUserStore from '../store/userStore.js';
 
 export const useGameSocket = ({ roomCode, resolvedPlayerId, resolvedPlayerName, dispatch }) => {
+    const token = useUserStore((s) => s.token);
+    // Read authPlayerId directly so the effect re-runs once Zustand rehydrates
+    const authPlayerId = useUserStore((s) => s.playerId);
+    const setRating = useUserStore((s) => s.setRating);
+
+    // Use the auth store's playerId when available — it's the MongoDB _id that
+    // the backend validates against the JWT. Fall back to whatever was resolved
+    // from route state (for guests / direct URL visits).
+    const effectivePlayerId = authPlayerId || resolvedPlayerId;
+
     useEffect(() => {
+        // Don't attempt to join until we have a real player ID
+        if (!effectivePlayerId) return;
+
         let cancelled = false;
         let unsubscribeGameEvents = () => { };
 
-        const onCasualQueued = (payload) => {
-            dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: `Queued for casual match (job ${payload.jobId}).` } });
-        };
-        const onCasualError = (err) => {
-            dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: `Queue error: ${err?.message || err}` } });
-        };
-        const onMatched = (data) => {
-            dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: `Matched with ${data?.opponent?.name || 'unknown'}` } });
-        };
+        const connect = () => {
+            // Reuse the existing socket singleton — never create a new connection here.
+            // If there is already a connected socket (from the matchmaking flow in Home.jsx),
+            // we reuse it as-is so the socketId stays the same.
+            // If we are landing here fresh (e.g. direct URL), create with token if available.
+            const client = getSocket() || createSocket(token || undefined);
 
-        const connect = async () => {
-            const playerId = resolvedPlayerId;
-            const playerName = resolvedPlayerName;
-            if (!playerId) return;
+            if (!client.connected) {
+                if (token) client.auth = { token };
+                client.connect();
+            }
 
-            const client = await connectGuest();
-            if (cancelled) return;
-
-            const join = () => {
+            const doJoin = () => {
+                if (cancelled) return;
+                console.debug('[useGameSocket] emitting joinRoom', { room: roomCode, playerId: effectivePlayerId });
                 dispatch({ type: 'SET_STATUS', payload: 'Connected' });
-                joinAsGuest({ room: roomCode, playerId, playerName });
+                client.emit('joinRoom', {
+                    room: roomCode,
+                    playerId: effectivePlayerId,
+                    playerName: resolvedPlayerName,
+                });
             };
-            if (client.connected) join();
-            else client.once('connect', join);
 
-            client.on('playCasualQueued', onCasualQueued);
-            client.on('playCasualError', onCasualError);
-            client.on('matched', onMatched);
+            if (client.connected) {
+                doJoin();
+            } else {
+                client.once('connect', doJoin);
+            }
 
             unsubscribeGameEvents = subscribeToGameEvents({
                 joinedRoom: (payload) => {
                     dispatch({ type: 'SET_LOCAL_PLAYER', payload: { id: payload.playerId, name: payload.playerName } });
+                },
+                joinRoomError: ({ message }) => {
+                    console.error('[useGameSocket] joinRoomError:', message);
+                    dispatch({ type: 'SET_STATUS', payload: `Join error: ${message}` });
+                    dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: `Could not join room: ${message}` } });
                 },
                 playerJoined: (payload) => {
                     dispatch({ type: 'PLAYER_JOINED', payload });
@@ -83,6 +101,16 @@ export const useGameSocket = ({ roomCode, resolvedPlayerId, resolvedPlayerName, 
                     dispatch({ type: 'ADD_MESSAGE', payload: { playerName: 'System', text: 'All words used! Submit new words to start the next round.' } });
                 },
                 endGame: (payload) => {
+                    // Update Zustand rating if this is a ranked game and the server
+                    // sent back eloResults for this player
+                    if (payload?.eloResults?.length && authPlayerId) {
+                        const myResult = payload.eloResults.find(
+                            (r) => r.playerId === authPlayerId
+                        );
+                        if (myResult) {
+                            setRating(myResult.newRating);
+                        }
+                    }
                     setTimeout(() => {
                         dispatch({ type: 'END_GAME', payload });
                     }, 3500);
@@ -95,14 +123,8 @@ export const useGameSocket = ({ roomCode, resolvedPlayerId, resolvedPlayerName, 
         return () => {
             cancelled = true;
             unsubscribeGameEvents();
-            const client = getSocket();
-            if (client) {
-                client.off('playCasualQueued', onCasualQueued);
-                client.off('playCasualError', onCasualError);
-                client.off('matched', onMatched);
-            }
         };
-    }, [roomCode, resolvedPlayerId, resolvedPlayerName, dispatch]);
+    }, [roomCode, effectivePlayerId, resolvedPlayerName, token, authPlayerId, setRating, dispatch]);
 
     useEffect(() => {
         return () => disconnectSocket();

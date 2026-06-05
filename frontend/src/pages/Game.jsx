@@ -10,18 +10,13 @@ import { handleSendGuess, handleSubmitWord, handleStartRound } from '../utils/ga
 import { gameReducer, initialGameState } from '../reducers/gameReducer.js';
 import { usePlayerResolution } from '../hooks/usePlayerResolution.js';
 import { useGameSocket } from '../hooks/useGameSocket.js';
-import { useGameTimers, useRoundTransition } from '../hooks/useGameTimers.js'; // Note: Both exported from useGameTimers.js now to save files
+import { useGameTimers, useRoundTransition } from '../hooks/useGameTimers.js';
 
 function Game() {
-  // ── Central Game State ────────────────────────────────────────────────
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
-
-  // ── Local Input State ─────────────────────────────────────────────────
-  // These stay as useState because they update on every keystroke
   const [guessValue, setGuessValue] = useState('');
   const [wordValue, setWordValue] = useState('');
 
-  // ── Auth & Identity ───────────────────────────────────────────────────
   const authPlayerName = useUserStore((s) => s.username);
   const authPlayerId = useUserStore((s) => s.playerId);
   const rating = useUserStore((s) => s.rating);
@@ -29,13 +24,14 @@ function Game() {
   const { roomId } = useParams();
   const location = useLocation();
   const routeState = location.state || {};
-  const roomCode = roomId || 'party-6767676767';
+  const roomCode = roomId || 'party-0000000000';
 
-  const [fallbackGuestId] = useState(() => `guest-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const [fallbackGuestId] = useState(
+    () => `guest-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  );
   const resolvedPlayerId = authPlayerId || state.localPlayerId || routeState.playerId || fallbackGuestId;
   const resolvedPlayerName = authPlayerName || state.localPlayerName || routeState.playerName || 'Guest';
 
-  // ── Hooks ────────────────────────────────────────────────────────────
   usePlayerResolution(
     state.localPlayerId,
     (id) => dispatch({ type: 'SET_LOCAL_PLAYER', payload: { id } }),
@@ -45,119 +41,118 @@ function Game() {
     resolvedPlayerName,
   );
 
-  useGameSocket({
-    roomCode,
-    resolvedPlayerId,
-    resolvedPlayerName,
-    dispatch,
-  });
-
+  useGameSocket({ roomCode, resolvedPlayerId, resolvedPlayerName, dispatch });
   useGameTimers(state, dispatch);
-
   useRoundTransition(state, dispatch, roomCode, authPlayerId);
 
-  // ── Event handlers ───────────────────────────────────────────────────
   const onSubmitWord = (e) =>
     handleSubmitWord({
-      event: e,
-      wordValue,
-      roomCode,
+      event: e, wordValue, roomCode,
       playerId: state.localPlayerId || authPlayerId,
       playerName: state.localPlayerName || authPlayerName,
-      dispatch,
-      setWordValue
+      dispatch, setWordValue,
     });
 
   const onStartRound = (e) =>
     handleStartRound({
-      event: e,
-      submittedCount: state.submittedCount,
-      totalPlayers: state.totalPlayers,
-      roomCode,
-      playerId: state.localPlayerId || authPlayerId,
-      dispatch
+      event: e, submittedCount: state.submittedCount,
+      totalPlayers: state.totalPlayers, roomCode,
+      playerId: state.localPlayerId || authPlayerId, dispatch,
     });
 
   const onSubmitGuess = (e) =>
     handleSendGuess({
-      event: e,
-      guessValue,
-      isDrawing: state.isDrawing,
-      roomCode,
+      event: e, guessValue, isDrawing: state.isDrawing, roomCode,
       playerName: state.localPlayerName || authPlayerName,
       playerId: state.localPlayerId || authPlayerId,
-      setGuessValue
+      setGuessValue,
     });
 
-  // ── Render ───────────────────────────────────────────────────────────
   const displayName = state.localPlayerName || authPlayerName || 'Guest';
 
+  // Word display: drawer sees actual word, guessers see underscores from server
+  const wordDisplay = state.gamePhase === 'guessing' || state.gamePhase === 'round-end'
+    ? (state.isDrawing ? state.currentWord : state.hideword)
+    : '—';
+
   return (
-    <div className='home-background flex flex-col'>
-      {/* ── Header Bar ─────────────────────────────────────────────── */}
-      <div className='flex items-center justify-between gap-3 p-2'>
-        <span className='font-mono p-2 text-2xl w-1/5'>{state.status}</span>
-        <div className='font-mono text-sm text-[var(--color-primary)] bg-[var(--color-neutral)] border-4 border-[var(--color-primary)] p-2 rounded w-1/5 flex flex-col items-center'>
-          <span className='font-bold'>Room</span>
-          <span>{roomCode}</span>
+    <div className="home-background flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - var(--navbar-height))' }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b-4 border-[var(--color-primary)] bg-[var(--color-neutral)] font-mono text-sm">
+        {/* Status */}
+        <span className="text-[var(--color-text-muted)] w-24 truncate">{state.status}</span>
+
+        {/* Room code */}
+        <div className="border-2 border-[var(--color-primary)] px-2 py-1 text-xs">
+          {roomCode}
         </div>
-        <span className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 flex flex-col items-center text-2xl w-1/4'>
-          {state.isDrawing ? state.currentWord : state.hideword || '???'}
-        </span>
-        <div className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 flex flex-col items-center gap-2 text-sm w-1/4'>
-          <span>Timer: {state.timer}s</span>
-          <span className='text-xs'>Phase: {state.gamePhase}</span>
+
+        {/* Word / blanks — centered */}
+        <div className="flex-1 flex justify-center">
+          <span className="text-xl font-bold tracking-[0.25em]">
+            {wordDisplay}
+          </span>
         </div>
-        <span className='font-display bg-[var(--color-secondary)] text-[var(--color-primary)] border-[var(--color-primary)] p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center gap-2 text-sm w-1/5'>
-          <span>{displayName}</span>
-          <span className='text-xs'>Rating: {rating}</span>
-        </span>
+
+        {/* Timer */}
+        <div className="border-2 border-[var(--color-primary)] px-2 py-1 text-xs w-20 text-center">
+          {state.gamePhase === 'guessing' ? `${state.timer}s` : state.gamePhase}
+        </div>
+
+        {/* Player identity */}
+        <div className="flex flex-col items-end text-xs w-28">
+          <span className="font-bold truncate">{displayName}</span>
+          <span className="text-[var(--color-text-muted)]">{rating ?? 1200}</span>
+        </div>
       </div>
 
-      {/* ── Main Content ───────────────────────────────────────────── */}
-      <div className='home-background flex flex-row p-3 gap-3 h-screen'>
-        {/* Sidebar: Players */}
-        <div className='font-display bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-3 w-1/5 h-5/7 text-2xl'>
-          <div><span>Players:</span></div>
-          <div className='flex flex-col justify-between text-lg'>
-            <PlayersList players={state.players} />
-          </div>
+      {/* Main area */}
+      <div className="flex flex-1 gap-2 p-2 min-h-0">
+        {/* Players sidebar */}
+        <div className="font-mono bg-[var(--color-neutral)] border-4 border-[var(--color-primary)] p-3 w-44 flex flex-col gap-2 shrink-0">
+          <span className="text-xs font-bold uppercase tracking-wide border-b-2 border-[var(--color-primary)] pb-1">
+            Players
+          </span>
+          <PlayersList players={state.players} currentDrawer={state.currentDrawer} />
         </div>
 
-        {/* Center: Board */}
-        <div className='font-mono bg-[var(--color-neutral)] text-[var(--color-primary)] border-4 border-[var(--color-primary)] p-2 w-full h-5/7 flex flex-col gap-4 text-2xl relative'>
-          {state.isGameOver && <EndGameOverlay className='text-white' players={state.players} />}
+        {/* Canvas */}
+        <div className="font-mono bg-[var(--color-neutral)] border-4 border-[var(--color-primary)] flex-1 flex flex-col relative min-w-0">
+          {state.isGameOver && <EndGameOverlay players={state.players} />}
 
           {state.gamePhase === 'word-input' ? (
-            <div className='flex items-center justify-center h-full'>
-              <div className='flex flex-col gap-4 items-center'>
-                <h2 className='text-2xl font-bold'>Submit a word to draw!</h2>
-                <div className='text-lg mb-4'>
-                  <span className={state.submittedCount === state.totalPlayers && state.totalPlayers > 0 ? 'text-green-500' : 'text-[var(--color-primary)]'}>
-                    {state.submittedCount}/{state.totalPlayers} players ready
-                  </span>
-                </div>
-                <form onSubmit={onSubmitWord} className='flex flex-col gap-4 items-center'>
-                  <input
-                    value={wordValue}
-                    onChange={(e) => setWordValue(e.target.value)}
-                    placeholder='Type a word...'
-                    className='w-64 rounded bg-[var(--color-neutral)] p-3 text-black border-2 border-[var(--color-primary)] text-lg'
-                    disabled={state.hasSubmittedWord}
-                  />
-                  <button type='submit' className='rounded bg-[var(--color-primary)] px-6 py-3 text-[var(--color-neutral)] hover:bg-[var(--color-secondary)] font-bold text-lg disabled:opacity-50' disabled={state.hasSubmittedWord}>
-                    {state.hasSubmittedWord ? 'Word Submitted!' : 'Submit Word'}
-                  </button>
-                </form>
-                {state.submittedCount === state.totalPlayers && state.totalPlayers > 0 && (
-                  <button onClick={onStartRound} className='rounded bg-green-500 px-8 py-3 text-white font-bold text-lg hover:bg-green-600 mt-4'>
-                    Start Round!
-                  </button>
-                )}
-              </div>
+            <div className="flex flex-col items-center justify-center h-full gap-4 p-4">
+              <p className="text-sm font-bold">Submit a word for others to draw</p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {state.submittedCount}/{state.totalPlayers} submitted
+              </p>
+              <form onSubmit={onSubmitWord} className="flex gap-2 w-full max-w-xs">
+                <input
+                  value={wordValue}
+                  onChange={(e) => setWordValue(e.target.value)}
+                  placeholder="Your word…"
+                  className="flex-1 border-2 border-[var(--color-primary)] bg-transparent p-2 text-sm outline-none"
+                  disabled={state.hasSubmittedWord}
+                />
+                <button
+                  type="submit"
+                  disabled={state.hasSubmittedWord}
+                  className="bg-[var(--color-primary)] text-[var(--color-neutral)] px-3 py-2 text-sm hover:bg-[var(--color-secondary)] hover:text-black disabled:opacity-40"
+                >
+                  {state.hasSubmittedWord ? '✓' : 'Submit'}
+                </button>
+              </form>
+              {state.submittedCount === state.totalPlayers && state.totalPlayers > 0 && (
+                <button
+                  onClick={onStartRound}
+                  className="bg-[var(--color-secondary)] text-black px-6 py-2 text-sm font-bold hover:opacity-80"
+                >
+                  Start Round
+                </button>
+              )}
             </div>
           ) : (
-            <div className='flex flex-col h-full relative'>
+            <div className="flex flex-col flex-1 relative min-h-0">
               <WhiteBoard room={roomCode} locked={!state.isDrawing} />
               {state.showRoundEndOverlay && (
                 <RoundEndOverlay
@@ -171,7 +166,7 @@ function Game() {
           )}
         </div>
 
-        {/* Right: Chat */}
+        {/* Chat */}
         <ChatPanel
           messages={state.messages}
           guessValue={guessValue}

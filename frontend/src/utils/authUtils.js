@@ -58,7 +58,8 @@ export const handleLogin = async (formData, setError, setLoading, setUser, setTo
         }
 
         // Store user data and token
-        setUser(data);
+        // Map _id → playerId so authPlayerId is always populated in the store
+        setUser({ ...data, playerId: data._id });
         setToken(data.token);
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('user', JSON.stringify(data));
@@ -98,7 +99,8 @@ export const handleSignup = async (formData, setError, setLoading, setUser, setT
         }
 
         // Store user data and token
-        setUser(data);
+        // Map _id → playerId so authPlayerId is always populated in the store
+        setUser({ ...data, playerId: data._id });
         setToken(data.token);
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('user', JSON.stringify(data));

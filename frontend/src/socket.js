@@ -70,11 +70,22 @@ const waitForConnection = (client) => {
 
 const connectSocket = async (token) => {
   const client = createSocket(token);
+
   if (token) {
     client.auth = { token };
+    // If already connected but without auth (e.g. from a prior guest session),
+    // we need to reconnect so the server middleware sees the token.
+    if (client.connected && !client.auth?.token) {
+      client.disconnect();
+    }
+    // If connected with a different token, also reconnect.
+    if (client.connected && client.auth?.token !== token) {
+      client.disconnect();
+    }
   } else {
     client.auth = {};
   }
+
   return waitForConnection(client);
 };
 
@@ -134,11 +145,19 @@ const sendClearDrawing = ({ room }) => {
   client.emit('clearDrawing', { room });
 };
 
-const sendPlayCasual = ({ playerId, playerName, preferences } = {}) => {
+const sendPlayCasual = ({ playerId, playerName, mode,preferences } = {}) => {
+  console.log(playerId,playerName);
   const client = createSocket();
   if (!client.connected) client.connect();
-  console.log(playerId,playerName,preferences);
-  client.emit('playCasual', { playerId, playerName, preferences });
+  console.log(playerId,playerName,mode,preferences);
+  client.emit('playCasual', { playerId, playerName, mode,preferences });
+};
+
+const sendPlayRanked = (token) => {
+  const client = createSocket(token);
+  if (token) client.auth = { token };
+  if (!client.connected) client.connect();
+  client.emit('playRanked');
 };
 
 const sendSubmitWord = ({ room, playerId, playerName, word }) => {
@@ -160,6 +179,21 @@ const onPlayCasualError = (handler) => {
 const onMatched = (handler) => {
   const client = createSocket();
   client.on('matched', handler);
+};
+
+const onPlayRankedQueued = (handler) => {
+  const client = createSocket();
+  client.on('playRankedQueued', handler);
+};
+
+const onPlayRankedError = (handler) => {
+  const client = createSocket();
+  client.on('playRankedError', handler);
+};
+
+const onRankedReconnect = (handler) => {
+  const client = createSocket();
+  client.on('rankedReconnect', handler);
 };
 
 const onRoundStart = (handler) => {
@@ -257,6 +291,9 @@ const offAll = () => {
   socket.off('playCasualQueued');
   socket.off('playCasualError');
   socket.off('matched');
+  socket.off('playRankedQueued');
+  socket.off('playRankedError');
+  socket.off('rankedReconnect');
   socket.off('roundStart');
   socket.off('wordSubmitted');
   socket.off('endRound');
@@ -275,6 +312,7 @@ export {
   sendGuess,
   sendCorrectGuess,
   sendPlayCasual,
+  sendPlayRanked,
   sendSubmitWord,
   connectGuest,
   joinAsGuest,
@@ -292,6 +330,9 @@ export {
   onPlayCasualQueued,
   onPlayCasualError,
   onMatched,
+  onPlayRankedQueued,
+  onPlayRankedError,
+  onRankedReconnect,
   onRoundStart,
   onWordSubmitted,
   onEndRound,
@@ -312,6 +353,7 @@ export default {
   sendGuess,
   sendCorrectGuess,
   sendPlayCasual,
+  sendPlayRanked,
   sendSubmitWord,
   sendClearDrawing,
   onPlayerJoined,
@@ -326,6 +368,9 @@ export default {
   onPlayCasualQueued,
   onPlayCasualError,
   onMatched,
+  onPlayRankedQueued,
+  onPlayRankedError,
+  onRankedReconnect,
   onRoundStart,
   onWordSubmitted,
   onEndRound,
