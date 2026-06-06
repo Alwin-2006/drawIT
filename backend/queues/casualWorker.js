@@ -91,24 +91,15 @@ export const createCasualWorker = (io) => {
       }
 
       const members = await client.hgetall(roomKey);
-      const sockets = [];
       const players = [];
 
       for (const [playerIdKey, playerJson] of Object.entries(members)) {
         try {
           const player = JSON.parse(playerJson);
           players.push(player);
-          const socket = io.sockets.sockets.get(player.socketId);
-          if (socket) {
-            sockets.push({ socket, player });
-          }
         } catch (e) {
           // ignore invalid entries
         }
-      }
-
-      for (const { socket } of sockets) {
-        socket.join(roomId);
       }
 
       const isRoomFull = count >= MAX_ROOM_PLAYERS;
@@ -125,9 +116,9 @@ export const createCasualWorker = (io) => {
           roomReady: false,
         });
 
-        for (const { socket, player } of sockets) {
-          if (player.playerId !== data.playerId) {
-            socket.emit('playerJoined', {
+        for (const player of players) {
+          if (player.playerId !== data.playerId && player.socketId) {
+            io.to(player.socketId).emit('playerJoined', {
               playerId: data.playerId,
               playerName: data.playerName,
             });
@@ -137,12 +128,12 @@ export const createCasualWorker = (io) => {
         return { matched: false, queued: true, roomId };
       }
 
-      for (const { socket, player } of sockets) {
+      for (const player of players) {
         const opponentList = players
           .filter((p) => p.playerId !== player.playerId)
           .map((p) => ({ playerId: p.playerId, playerName: p.playerName }));
 
-        socket.emit('matched', {
+        io.to(player.socketId).emit('matched', {
           roomId,
           opponentList,
           yourId: player.playerId,

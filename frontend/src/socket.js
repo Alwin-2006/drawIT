@@ -1,7 +1,10 @@
 import { io } from 'socket.io-client';
 
 const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
-const SOCKET_URL = env.VITE_BACKEND_URL || 'http://localhost:3000';
+// In production the nginx reverse proxy sits on the same origin, so an empty
+// string connects Socket.IO to window.location (e.g. http://yourdomain.com).
+// In local dev (no Docker) fall back to the Vite dev server's backend address.
+const SOCKET_URL = env.VITE_BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
 let socket;
 

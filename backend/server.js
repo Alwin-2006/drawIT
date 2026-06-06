@@ -8,6 +8,7 @@ import gameRoutes from "./routes/gameRoutes.js";
 import redisClient from "./redis/redis.js";
 import initSocket from "./socket.js";
 import { createCasualWorker } from "./queues/casualWorker.js";
+import { createRankedWorker } from "./queues/rankedWorker.js";
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ const server = http.createServer(app);
 
 const io = initSocket(server);
 createCasualWorker(io);
+createRankedWorker(io);
 
 app.get("/redis", async (req, res) => {
     try {

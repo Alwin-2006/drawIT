@@ -1,0 +1,24 @@
+# Development override — runs Vite dev server with hot reload instead of nginx.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This overrides the frontend service and re-exposes the backend port so the
+# Vite dev server can reach it directly.
+
+services:
+  backend:
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT:-3000}
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-3000}
+    volumes:
+      - ./frontend/src:/usr/src/app/src
+      - ./frontend/index.html:/usr/src/app/index.html
+      - ./frontend/vite.config.js:/usr/src/app/vite.config.js

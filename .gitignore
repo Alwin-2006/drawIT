@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local documentation
+# Local documentation — keep READMEs, ignore change logs
 CHANGES_DOCUMENTATION.md

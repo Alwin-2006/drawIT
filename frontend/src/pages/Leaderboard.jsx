@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import useUserStore from '../store/userStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// In production the nginx reverse proxy handles /api/* on the same origin.
+// In local dev fall back to the Vite proxy or direct backend address.
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 const PAGE_SIZE = 5;
 
 // Medal colors for top 3

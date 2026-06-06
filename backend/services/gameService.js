@@ -1,5 +1,7 @@
 import redisClient from "../redis/redis.js";
 import { normalizePlayerId, MAX_ROUNDS } from "../utils/gameUtils.js";
+import { calculateRankedElo } from "./eloService.js";
+import { Player } from "../models/player.model.js";
 
 // In-memory timers and start times (kept here or passed as state)
 const roomTimers = new Map();
@@ -62,6 +64,7 @@ export const checkAllNonDrawersGuessed = async (room, drawerId, playersRaw) => {
 
 export const endGameForRoom = async (room, io) => {
     if (!room) return false;
+
     const scoresKey = `room:${room}:scores`;
     const playersKey = `room:${room}:players`;
     const lastDrawerKey = `room:${room}:lastDrawer`;
@@ -71,18 +74,63 @@ export const endGameForRoom = async (room, io) => {
     const roundsRemainingKey = `room:${room}:roundsRemaining`;
     const membersKey = `room:${room}:members`;
     const casualMembersKey = `casual:room:${room}:members`;
+    const rankedMembersKey = `ranked:room:${room}:members`;
+    const rankedRoomDataKey = `ranked:room:${room}:data`;
+
     const scores = await redisClient.zrange(scoresKey, 0, -1, 'WITHSCORES');
     const playersRaw = await redisClient.hgetall(playersKey);
     const players = Object.values(playersRaw || {}).map(v => JSON.parse(v));
 
+    // ── Ranked: compute and persist ELO updates ──────────────────────────────
+    const rankedFlag = await redisClient.hget(rankedRoomDataKey, 'isRanked');
+    let eloResults = [];
+
+    if (rankedFlag === '1' && players.length > 0) {
+        console.log('ended ranked game');
+        try {
+            // Build input for ELO calculation: fetch current ratings from DB
+            const playerDocs = await Player.find({
+                _id: { $in: players.map(p => p.playerId) }
+            }).select('_id rating');
+
+            const ratingMap = new Map(playerDocs.map(d => [d._id.toString(), d.rating]));
+
+            const eloInput = players.map(p => ({
+                playerId: p.playerId,
+                rating: ratingMap.get(p.playerId) ?? 1200,
+                score: p.score || 0,
+            }));
+
+            eloResults = calculateRankedElo(eloInput);
+
+            // Persist updated ratings to MongoDB and clear player→room mapping
+            await Promise.all(
+                eloResults.map(async ({ playerId, newRating }) => {
+                    await Player.findByIdAndUpdate(playerId, { rating: newRating });
+                    await redisClient.del(`ranked:player:${playerId}:room`);
+                })
+            );
+
+            console.log('[gameService] ELO updates after ranked game in room', room, eloResults);
+        } catch (e) {
+            console.error('[gameService] Failed to update ELO ratings:', e.message || e);
+        }
+    }
+
+    // ── Cleanup Redis keys ────────────────────────────────────────────────────
     try {
-        await redisClient.del(scoresKey, playersKey, lastDrawerKey, wordsKey, submittedPlayersKey, turnsInRoundKey, roundsRemainingKey, membersKey, casualMembersKey, `room:${room}:data`);
+        await redisClient.del(
+            scoresKey, playersKey, lastDrawerKey, wordsKey,
+            submittedPlayersKey, turnsInRoundKey, roundsRemainingKey,
+            membersKey, casualMembersKey, rankedMembersKey, rankedRoomDataKey,
+            `room:${room}:data`,
+        );
     } catch (e) {
-        console.error('Failed to cleanup game keys:', e.message || e);
+        console.error('[gameService] Failed to cleanup game keys:', e.message || e);
     }
 
     if (io) {
-        io.to(room).emit('endGame', { room, scores, players });
+        io.to(room).emit('endGame', { room, scores, players, eloResults });
     }
     return true;
 };

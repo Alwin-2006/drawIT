@@ -1,14 +1,16 @@
 import express from "express";
-import { getLeaderboard,
+import {
+    getLeaderboard,
     updateScore,
     getPlayerStats,
-    nextRound, } from "../controllers/game.controller.js";
+    nextRound,
+} from "../controllers/game.controller.js";
 
 const router = express.Router();
 
-router.post("/get-leaderboard", getLeaderboard);
+router.get("/leaderboard", getLeaderboard);          // GET  /api/game/leaderboard
+router.get("/player-stats/:playerId", getPlayerStats); // GET  /api/game/player-stats/:playerId
 router.post("/update-score", updateScore);
-router.post("/get-player-stats", getPlayerStats);
 router.post("/next-round", nextRound);
 
 export default router;

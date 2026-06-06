@@ -8,6 +8,7 @@ const casualQueue = new Queue(casualQueueName, {
   connection: client,
 });
 
+
 const casualQueueScheduler = new JobScheduler(casualQueueName, {
   connection: client,
 });

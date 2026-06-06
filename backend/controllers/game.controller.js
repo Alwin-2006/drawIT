@@ -2,18 +2,91 @@ import redisClient from "../redis/redis.js";
 import { getIo } from "../socket.js";
 import { setRoomTimer } from "../services/gameService.js";
 import { normalizeWord, ROUND_DURATION_MS } from "../utils/gameUtils.js";
+import { Player } from "../models/player.model.js";
 
-// Get all players from leaderboard
+const LEADERBOARD_KEY = 'player:leaderboard';       // sorted set: score=rating, member=playerId
+const LEADERBOARD_NAMES_KEY = 'player:leaderboard:names'; // hash: playerId → username
+const LEADERBOARD_TTL = 60 * 5; // 5 minutes cache
+
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+/**
+ * Rebuild the Redis leaderboard cache from MongoDB.
+ * Called when the cache is cold or after a ranked game ends.
+ */
+export const rebuildLeaderboardCache = async () => {
+    const players = await Player.find({})
+        .select('_id username rating')
+        .sort({ rating: -1 })
+        .limit(100)
+        .lean();
+
+    if (players.length === 0) return;
+
+    //create a pipeline to batch Redis commands for efficiency
+    const pipeline = redisClient.pipeline();
+
+    //now the following commands will be executed atomically and together when we call pipeline.exec()
+    pipeline.del(LEADERBOARD_KEY);
+    for (const p of players) {
+        pipeline.zadd(LEADERBOARD_KEY, p.rating, p._id.toString());
+    }
+
+    // Rebuild names hash
+    pipeline.del(LEADERBOARD_NAMES_KEY);
+    for (const p of players) {
+        pipeline.hset(LEADERBOARD_NAMES_KEY, p._id.toString(), p.username);
+    }
+
+    // Set TTL on the sorted set
+    pipeline.expire(LEADERBOARD_KEY, LEADERBOARD_TTL);
+    pipeline.expire(LEADERBOARD_NAMES_KEY, LEADERBOARD_TTL);
+
+    await pipeline.exec();
+};
+
 const getLeaderboard = async (req, res) => {
     try {
-        const leaderboard = await redisClient.zrevrange('game:leaderboard', 0, -1, 'WITHSCORES');
-        res.json(leaderboard);
+        const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+        const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
+
+        // Check if cache exists
+        const cacheExists = await redisClient.exists(LEADERBOARD_KEY);
+        if (!cacheExists) {
+            await rebuildLeaderboardCache();
+        }
+
+        // Total entries in the sorted set
+        const total = await redisClient.zcard(LEADERBOARD_KEY);
+
+        // zrevrange with scores for the requested page
+        const raw = await redisClient.zrevrange(LEADERBOARD_KEY, offset, offset + limit - 1, 'WITHSCORES');
+
+        const entries = [];
+        for (let i = 0; i < raw.length; i += 2) {
+            const playerId = raw[i];
+            const rating = parseInt(raw[i + 1], 10);
+            entries.push({ playerId, rating });
+        }
+
+        // Batch fetch usernames from hash
+        if (entries.length > 0) {
+            const ids = entries.map(e => e.playerId);
+            const names = await redisClient.hmget(LEADERBOARD_NAMES_KEY, ...ids);
+            entries.forEach((e, i) => {
+                e.username = names[i] || e.playerId;
+                e.rank = offset + i + 1;
+            });
+        }
+
+        res.json({ entries, total, offset, limit });
     } catch (error) {
+        console.error('[leaderboard] getLeaderboard error:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-// Update player score
+// Update player score — kept for backward compat, now updates leaderboard cache too
 const updateScore = async (req, res) => {
     try {
         const { playerId, score } = req.body;
@@ -24,13 +97,16 @@ const updateScore = async (req, res) => {
     }
 };
 
-// Get player rank and score
+// Get player rank from the leaderboard cache
 const getPlayerStats = async (req, res) => {
     try {
         const { playerId } = req.params;
-        const score = await redisClient.zscore('game:leaderboard', playerId);
-        const rank = await redisClient.zrevrank('game:leaderboard', playerId);
-        res.json({ playerId, score, rank: rank !== null ? rank + 1 : null });
+        const cacheExists = await redisClient.exists(LEADERBOARD_KEY);
+        if (!cacheExists) await rebuildLeaderboardCache();
+
+        const rating = await redisClient.zscore(LEADERBOARD_KEY, playerId);
+        const rank = await redisClient.zrevrank(LEADERBOARD_KEY, playerId);
+        res.json({ playerId, rating: rating ? parseInt(rating, 10) : null, rank: rank !== null ? rank + 1 : null });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
