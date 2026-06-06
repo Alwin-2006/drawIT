@@ -1,24 +1,11 @@
 services:
-  database:
-    image: mongo:latest
-    container_name: mern-mongodb
-    restart: always
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - mern-network
-
   redis:
     image: redis:8.4.0-alpine
     container_name: mern-redis
     restart: always
-    ports:
-      - "${REDIS_PORT}:6379"
+    # Not exposed to the host — only reachable inside the Docker network
+    expose:
+      - "6379"
     volumes:
       - redis-data:/data
     networks:
@@ -27,19 +14,19 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: mern-backend
     restart: always
-    ports:
-      - "${BACKEND_PORT}:3000"
+    # Not exposed to the host — traffic arrives via the nginx proxy
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=${NODE_ENV}
-      - MONGO_URI=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@database:27017/${MONGO_DB_NAME}?authSource=admin
-      - REDIS_URL=redis://redis:${REDIS_PORT}
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
       - PORT=3000
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
-      - database
       - redis
     networks:
       - mern-network
@@ -47,26 +34,22 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: dockerfile.dev
+      dockerfile: dockerfile
     container_name: mern-frontend
     restart: always
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-80}:80"
+    # Both /api and /socket.io are proxied through nginx — no separate backend URL needed
     environment:
-      - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT}
-    volumes:
-      - ./frontend/src:/usr/src/app/src
-      - ./frontend/index.html:/usr/src/app/index.html
-      - ./frontend/vite.config.js:/usr/src/app/vite.config.js
+      - VITE_BACKEND_URL=""
+      - VITE_API_URL=""
     depends_on:
       - backend
     networks:
       - mern-network
 
 volumes:
-  mongo-data:
   redis-data:
-
 
 networks:
   mern-network:
