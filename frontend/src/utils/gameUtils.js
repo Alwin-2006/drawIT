@@ -1,7 +1,7 @@
 import { sendGuess, sendSubmitWord, sendClearDrawing } from '../socket.js';
 
 export const ROUND_END_DELAY_SEC = 7;
-const API_BASE = 'http://localhost:3000/api/game';
+const API_BASE = `${import.meta.env.VITE_BACKEND_URL}/api/game`;
 
 const fetchNextRound = async (roomCode, playerId) => {
   const res = await fetch(`${API_BASE}/next-round`, {
