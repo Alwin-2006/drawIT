@@ -30,10 +30,7 @@ jobs:
             # This overwrites the file on every deploy so secrets stay in sync.
             cat > .env <<'ENVEOF'
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-            MONGO_ROOT_USERNAME=${{ secrets.MONGO_ROOT_USERNAME }}
-            MONGO_ROOT_PASSWORD=${{ secrets.MONGO_ROOT_PASSWORD }}
-            MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}
-            MONGODB_URI=mongodb://${{ secrets.MONGO_ROOT_USERNAME }}:${{ secrets.MONGO_ROOT_PASSWORD }}@database:27017/${{ secrets.MONGO_DB_NAME }}?authSource=admin
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
             REDIS_URL=redis://redis:6379
             REDIS_PORT=6379
             BACKEND_PORT=3000
