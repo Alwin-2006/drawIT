@@ -25,12 +25,10 @@
 
 export const getCanvasCoordinates = (event, canvas) => {
   const rect = canvas.getBoundingClientRect(); // gets the smallest boundary of canvas
-  const ratioX = canvas.width / rect.width;
-  const ratioY = canvas.height / rect.height;
 
   return {
-    x: (event.clientX - rect.left) * ratioX,
-    y: (event.clientY - rect.top) * ratioY,
+    x: (event.clientX - rect.left) ,
+    y: (event.clientY - rect.top),
   };
 };
 
